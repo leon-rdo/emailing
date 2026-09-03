@@ -9,6 +9,7 @@ from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
 
 from .aliases import alias_por_slug, carregar_aliases
+from .anexos import ErroAnexo, criar_token, ler_anexos, listar_anexos, remover_anexo, salvar_anexo
 from .forms import FormularioLogin, FormularioRedacao
 from .models import RegistroEnvio
 from .montagem import DadosRedacao, calcular_hash_previa, montar_email
@@ -35,17 +36,42 @@ class Sair(LogoutView):
 
 
 def redigir(request):
-    """Redigir e pré-visualizar. O envio de verdade entra na Etapa 7.
+    """Redigir, anexar, pré-visualizar. O envio de verdade entra na Etapa 7.
 
-    `acao=previa` é a única ação com efeito nesta etapa: `montar_email()` é
-    função pura, então a prévia mostra exatamente o HTML sanitizado e assinado
-    que sairia — sem depender de rascunho guardado em lugar nenhum (ver
-    `montagem.py` e `CLAUDE.md`).
+    `montar_email()` é função pura, então a prévia mostra exatamente o HTML
+    sanitizado e assinado que sairia — sem depender de rascunho guardado em
+    lugar nenhum (ver `montagem.py` e `CLAUDE.md`). Os anexos são a única
+    exceção que precisa mesmo de um estado guardado entre requisições: o
+    arquivo em si não cabe de volta num campo oculto do formulário, então fica
+    no disco, sob o token do campo `rascunho`, e sobrevive entre uma prévia e
+    a próxima até o envio (ou até `limpar_rascunhos` expirá-lo).
     """
     aliases = carregar_aliases()
+    anexos_lista = []
 
     if request.method == "POST":
-        form = FormularioRedacao(request.POST, aliases=aliases)
+        form = FormularioRedacao(request.POST, request.FILES, aliases=aliases)
+        token = request.POST.get("rascunho", "").strip()
+
+        # Anexos são processados em QUALQUER POST — prévia, remoção, ou (na
+        # Etapa 7) envio — não existe uma rota de upload separada.
+        novos = request.FILES.getlist("novo_anexo")
+        if novos and not token:
+            token = criar_token()
+        for arquivo in novos:
+            try:
+                salvar_anexo(token, arquivo)
+            except ErroAnexo as exc:
+                form.add_error(None, str(exc))
+
+        remover = request.POST.get("remover_anexo")
+        if remover:
+            remover_anexo(token, remover)
+
+        if token:
+            form.data = form.data.copy()
+            form.data["rascunho"] = token
+            anexos_lista = listar_anexos(token)
     else:
         inicial = {"alias": aliases[0].slug} if aliases else {}
         responder_a = request.GET.get("responder")
@@ -75,15 +101,18 @@ def redigir(request):
             in_reply_to=form.cleaned_data["in_reply_to"],
             referencias=form.cleaned_data["referencias"],
         )
-        mensagem = montar_email(dados, alias)
+        mensagem = montar_email(dados, alias, anexos=ler_anexos(token))
         html_final = mensagem.alternatives[0][0]
         previa = {
             "html": html_final,
             "texto": mensagem.body,
-            "hash": calcular_hash_previa(html_final),
+            "hash": calcular_hash_previa(html_final, [a.id for a in anexos_lista]),
         }
 
-    return render(request, "mensagens/redigir.html", {"form": form, "previa": previa})
+    return render(
+        request, "mensagens/redigir.html",
+        {"form": form, "previa": previa, "anexos": anexos_lista},
+    )
 
 
 def historico(request):

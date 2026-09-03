@@ -75,6 +75,26 @@ class ListaEnderecosField(forms.CharField):
         return enderecos
 
 
+class EntradaMultiploArquivo(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class CampoMultiploArquivo(forms.FileField):
+    """Receita da documentação do Django: `FileField` não aceita `multiple`
+    sozinho desde a 5.0 — é preciso um widget e um `clean()` próprios."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("required", False)
+        kwargs.setdefault("widget", EntradaMultiploArquivo)
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        limpar_um = super().clean
+        if isinstance(data, (list, tuple)):
+            return [limpar_um(item, initial) for item in data]
+        return limpar_um(data, initial)
+
+
 class FormularioRedacao(forms.Form):
     alias = forms.ChoiceField(label="De")
     para = ListaEnderecosField(label="Para", minimo_um=True)
@@ -82,8 +102,10 @@ class FormularioRedacao(forms.Form):
     cco = ListaEnderecosField(label="Cco")
     assunto = forms.CharField(label="Assunto", max_length=200, required=False)
     corpo = forms.CharField(label="Mensagem", required=False, widget=forms.HiddenInput)
+    novo_anexo = CampoMultiploArquivo(label="Anexar arquivo")
 
     # Passthrough entre prévia e envio — preenchidos por código, não digitados.
+    rascunho = forms.CharField(required=False, widget=forms.HiddenInput)
     in_reply_to = forms.CharField(required=False, widget=forms.HiddenInput)
     referencias = forms.CharField(required=False, widget=forms.HiddenInput)
     citacao_html = forms.CharField(required=False, widget=forms.HiddenInput)

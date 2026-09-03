@@ -11,8 +11,9 @@
 <div class="cartao largo">
 	<h1>Redigir</h1>
 
-	<form method="post" novalidate>
+	<form method="post" enctype="multipart/form-data" novalidate>
 		{% csrf_token %}
+		{{ form.rascunho }}
 		{% if form.non_field_errors %}
 		<ul class="errorlist">{% for erro in form.non_field_errors %}<li>{{ erro }}</li>{% endfor %}</ul>
 		{% endif %}
@@ -58,6 +59,26 @@
 			<label for="id_corpo">Mensagem</label>
 			{{ form.corpo }}
 			<trix-editor input="id_corpo" class="editor-trix" placeholder="Escreva sua mensagem…"></trix-editor>
+		</p>
+
+		{% if anexos %}
+		<div class="campo">
+			<label>Anexos</label>
+			<ul class="lista-anexos">
+				{% for anexo in anexos %}
+				<li>
+					<span>{{ anexo.nome }} <span class="nota">({{ anexo.tamanho_legivel }})</span></span>
+					<button type="submit" name="remover_anexo" value="{{ anexo.id }}" class="link">remover</button>
+				</li>
+				{% endfor %}
+			</ul>
+		</div>
+		{% endif %}
+
+		<p class="campo">
+			<label for="{{ form.novo_anexo.id_for_label }}">Anexar arquivo</label>
+			{{ form.novo_anexo }}
+			{% for erro in form.novo_anexo.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
 		</p>
 
 		<div class="acoes">

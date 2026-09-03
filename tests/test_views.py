@@ -73,6 +73,72 @@ def test_previa_com_formulario_invalido_nao_quebra(client, logado):
 
 
 @DOMINIOS
+def test_anexar_lista_e_persiste_entre_previas(client, logado, tmp_path, settings):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    settings.RASCUNHOS_DIR = tmp_path
+    dados_base = {
+        "acao": "previa", "alias": "financeiro",
+        "para": "c@x.com", "corpo": "<p>oi</p>",
+    }
+
+    primeira = client.post(
+        reverse("mensagens:inicio"),
+        {**dados_base, "novo_anexo": SimpleUploadedFile("nota.pdf", b"conteudo")},
+    )
+    assert primeira.status_code == 200
+    token = primeira.context["form"]["rascunho"].value()
+    assert token
+    assert [a.nome for a in primeira.context["anexos"]] == ["nota.pdf"]
+
+    # O token volta no campo oculto — a segunda prévia, sem novo arquivo,
+    # continua mostrando o anexo já salvo.
+    segunda = client.post(reverse("mensagens:inicio"), {**dados_base, "rascunho": token})
+    assert [a.nome for a in segunda.context["anexos"]] == ["nota.pdf"]
+
+
+@DOMINIOS
+def test_remover_anexo_mantem_os_demais(client, logado, tmp_path, settings):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from mensagens.anexos import criar_token, salvar_anexo
+
+    settings.RASCUNHOS_DIR = tmp_path
+    token = criar_token()
+    um = salvar_anexo(token, SimpleUploadedFile("um.pdf", b"1"))
+    salvar_anexo(token, SimpleUploadedFile("dois.pdf", b"2"))
+
+    resposta = client.post(
+        reverse("mensagens:inicio"),
+        {
+            "alias": "financeiro", "para": "c@x.com", "corpo": "<p>oi</p>",
+            "rascunho": token, "remover_anexo": um.id,
+        },
+    )
+    assert resposta.status_code == 200
+    assert [a.nome for a in resposta.context["anexos"]] == ["dois.pdf"]
+
+
+@DOMINIOS
+def test_anexo_com_extensao_bloqueada_mostra_erro(client, logado, tmp_path, settings):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    settings.RASCUNHOS_DIR = tmp_path
+    settings.ANEXOS_EXTENSOES_BLOQUEADAS = ["exe"]
+
+    resposta = client.post(
+        reverse("mensagens:inicio"),
+        {
+            "acao": "previa", "alias": "financeiro", "para": "c@x.com", "corpo": "<p>oi</p>",
+            "novo_anexo": SimpleUploadedFile("virus.exe", b"MZ"),
+        },
+    )
+    assert resposta.status_code == 200
+    assert b"n\xc3\xa3o permitido" in resposta.content
+    assert resposta.context["previa"] is None
+
+
+@DOMINIOS
 def test_responder_pre_preenche_destinatario_original(client, logado):
     from mensagens.models import RegistroEnvio
 
