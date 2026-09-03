@@ -81,24 +81,40 @@
 			{% for erro in form.novo_anexo.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
 		</p>
 
+		{% if previa %}
+		<input type="hidden" name="hash_previa" value="{{ previa.hash }}">
+
+		<h2>Prévia</h2>
+		<p class="nota">Exatamente o que seria enviado: corpo sanitizado + assinatura do alias.</p>
+		<iframe class="previa-iframe" sandbox="" srcdoc="{{ previa.html }}"></iframe>
+		<details>
+			<summary>Ver parte em texto simples</summary>
+			<pre>{{ previa.texto }}</pre>
+		</details>
+		{% endif %}
+
 		<div class="acoes">
-			<button type="submit" name="acao" value="previa" class="primario">Pré-visualizar</button>
+			<button type="submit" name="acao" value="previa" class="botao">Pré-visualizar</button>
+			{% if previa %}
+			<button type="submit" name="acao" value="enviar" class="primario">Enviar</button>
+			{% endif %}
 		</div>
 	</form>
-
-	{% if previa %}
-	<h2>Prévia</h2>
-	<p class="nota">Exatamente o que seria enviado: corpo sanitizado + assinatura do alias.</p>
-	<iframe class="previa-iframe" sandbox="" srcdoc="{{ previa.html }}"></iframe>
-	<details>
-		<summary>Ver parte em texto simples</summary>
-		<pre>{{ previa.texto }}</pre>
-	</details>
-	{% endif %}
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script nonce="{{ request.csp_nonce }}" src="{% static 'mensagens/trix.umd.js' %}"></script>
 <script nonce="{{ request.csp_nonce }}" src="{% static 'mensagens/editor.js' %}"></script>
+<script nonce="{{ request.csp_nonce }}">
+// Impede um clique duplo em "Enviar" disparar dois envios antes do
+// redirecionamento — não é o que protege contra F5 (isso é o próprio
+// POST-redirect-GET), só a corrida de dois cliques quase simultâneos.
+document.querySelector("form").addEventListener("submit", function (evento) {
+	var botao = evento.submitter;
+	if (botao && botao.name === "acao" && botao.value === "enviar") {
+		setTimeout(function () { botao.disabled = true; }, 0);
+	}
+});
+</script>
 {% endblock %}

@@ -1,15 +1,17 @@
 """Views do app."""
 
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.paginator import Paginator
-from django.shortcuts import get_object_or_404, render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.decorators import method_decorator
 
 from .aliases import alias_por_slug, carregar_aliases
 from .anexos import ErroAnexo, criar_token, ler_anexos, listar_anexos, remover_anexo, salvar_anexo
+from .envio import enviar_email
 from .forms import FormularioLogin, FormularioRedacao
 from .models import RegistroEnvio
 from .montagem import DadosRedacao, calcular_hash_previa, montar_email
@@ -36,7 +38,7 @@ class Sair(LogoutView):
 
 
 def redigir(request):
-    """Redigir, anexar, pré-visualizar. O envio de verdade entra na Etapa 7.
+    """Redigir, anexar, pré-visualizar e enviar.
 
     `montar_email()` é função pura, então a prévia mostra exatamente o HTML
     sanitizado e assinado que sairia — sem depender de rascunho guardado em
@@ -45,6 +47,11 @@ def redigir(request):
     arquivo em si não cabe de volta num campo oculto do formulário, então fica
     no disco, sob o token do campo `rascunho`, e sobrevive entre uma prévia e
     a próxima até o envio (ou até `limpar_rascunhos` expirá-lo).
+
+    O envio só acontece quando `hash_previa` (calculado sobre o mesmo HTML
+    final + os mesmos anexos) bate com o que a última prévia mostrou — editar
+    o corpo ou trocar um anexo depois de pré-visualizar e clicar Enviar volta
+    para uma prévia atualizada, em vez de mandar algo que não foi conferido.
     """
     aliases = carregar_aliases()
     anexos_lista = []
@@ -90,6 +97,7 @@ def redigir(request):
 
     previa = None
     if request.method == "POST" and form.is_valid():
+        acao = request.POST.get("acao")
         alias = alias_por_slug(form.cleaned_data["alias"])
         dados = DadosRedacao(
             para=form.cleaned_data["para"],
@@ -101,13 +109,27 @@ def redigir(request):
             in_reply_to=form.cleaned_data["in_reply_to"],
             referencias=form.cleaned_data["referencias"],
         )
+        ids_anexos = [a.id for a in anexos_lista]
         mensagem = montar_email(dados, alias, anexos=ler_anexos(token))
         html_final = mensagem.alternatives[0][0]
-        previa = {
-            "html": html_final,
-            "texto": mensagem.body,
-            "hash": calcular_hash_previa(html_final, [a.id for a in anexos_lista]),
-        }
+        hash_atual = calcular_hash_previa(dados, alias, html_final, ids_anexos)
+
+        if acao == "enviar" and request.POST.get("hash_previa") == hash_atual:
+            registro = enviar_email(alias, dados, token_anexos=token)
+            if registro.status == RegistroEnvio.Status.ENVIADO:
+                messages.success(request, "E-mail enviado.")
+            else:
+                messages.error(request, f"Falha ao enviar: {registro.erro}")
+            return redirect("mensagens:registro", pk=registro.pk)
+
+        if acao == "enviar":
+            messages.warning(
+                request,
+                "O conteúdo mudou desde a última prévia. Confira a prévia atualizada "
+                "antes de enviar.",
+            )
+
+        previa = {"html": html_final, "texto": mensagem.body, "hash": hash_atual}
 
     return render(
         request, "mensagens/redigir.html",

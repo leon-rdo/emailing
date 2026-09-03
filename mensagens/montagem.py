@@ -56,14 +56,22 @@ def montar_corpo(dados: DadosRedacao, alias: Alias) -> tuple[str, str]:
     return html_final, html_para_texto(html_final)
 
 
-def calcular_hash_previa(html_final: str, ids_anexos: list[str] = ()) -> str:
-    """Assinatura do conteúdo mostrado na prévia.
+def calcular_hash_previa(dados: DadosRedacao, alias: Alias, html_final: str,
+                          ids_anexos: list[str] = ()) -> str:
+    """Assinatura de tudo que define o envio — não só o corpo.
 
-    Comparada no momento do envio: se o corpo ou os anexos mudaram depois da
-    última prévia, o envio é recusado e a prévia é refeita — sem guardar
-    rascunho nenhum, só recalculando sobre o mesmo POST.
+    Comparada no momento do envio: se o corpo, os anexos, o alias ou QUALQUER
+    destinatário/assunto mudaram desde a última prévia, o envio é recusado e a
+    prévia é refeita — sem guardar rascunho nenhum, só recalculando sobre o
+    mesmo POST. Cobrir só o HTML final (como uma versão anterior deste código
+    fazia) deixaria passar batido, por exemplo, trocar o destinatário depois
+    de pré-visualizar e antes de clicar Enviar.
     """
-    material = html_final + "|" + ",".join(sorted(ids_anexos))
+    material = "|".join([
+        alias.slug,
+        ",".join(dados.para), ",".join(dados.cc), ",".join(dados.cco),
+        dados.assunto, html_final, ",".join(sorted(ids_anexos)),
+    ])
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 

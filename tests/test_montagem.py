@@ -154,18 +154,43 @@ def test_e_realmente_pura_mesma_entrada_mesma_saida(ambiente_de_aliases):
     assert m1.extra_headers["From"] == m2.extra_headers["From"]
 
 
-def test_hash_previa_muda_com_o_conteudo():
-    a = calcular_hash_previa("<p>um</p>")
-    b = calcular_hash_previa("<p>dois</p>")
+@DOMINIOS
+def test_hash_previa_muda_com_o_conteudo(ambiente_de_aliases):
+    ambiente_de_aliases(**BASE)
+    alias = alias_por_slug("financeiro")
+    dados = DadosRedacao(para=["c@x.com"])
+    a = calcular_hash_previa(dados, alias, "<p>um</p>")
+    b = calcular_hash_previa(dados, alias, "<p>dois</p>")
     assert a != b
-    assert a == calcular_hash_previa("<p>um</p>")
+    assert a == calcular_hash_previa(dados, alias, "<p>um</p>")
 
 
-def test_hash_previa_muda_com_os_anexos():
-    sem_anexo = calcular_hash_previa("<p>x</p>", [])
-    com_anexo = calcular_hash_previa("<p>x</p>", ["id-1"])
+@DOMINIOS
+def test_hash_previa_muda_com_os_anexos(ambiente_de_aliases):
+    ambiente_de_aliases(**BASE)
+    alias = alias_por_slug("financeiro")
+    dados = DadosRedacao(para=["c@x.com"])
+    sem_anexo = calcular_hash_previa(dados, alias, "<p>x</p>", [])
+    com_anexo = calcular_hash_previa(dados, alias, "<p>x</p>", ["id-1"])
     assert sem_anexo != com_anexo
     # Ordem não importa: mesmos anexos em ordem diferente dão o mesmo hash.
-    ordem_a = calcular_hash_previa("<p>x</p>", ["a", "b"])
-    ordem_b = calcular_hash_previa("<p>x</p>", ["b", "a"])
+    ordem_a = calcular_hash_previa(dados, alias, "<p>x</p>", ["a", "b"])
+    ordem_b = calcular_hash_previa(dados, alias, "<p>x</p>", ["b", "a"])
     assert ordem_a == ordem_b
+
+
+@DOMINIOS
+def test_hash_previa_muda_com_o_destinatario(ambiente_de_aliases):
+    """O hash tem que cobrir para/cc/cco/assunto, não só o corpo — trocar o
+    destinatário depois de pré-visualizar não pode passar despercebido."""
+    ambiente_de_aliases(**BASE)
+    alias = alias_por_slug("financeiro")
+    html = "<p>x</p>"
+    para_a = calcular_hash_previa(DadosRedacao(para=["a@x.com"]), alias, html)
+    para_b = calcular_hash_previa(DadosRedacao(para=["b@x.com"]), alias, html)
+    assert para_a != para_b
+
+    mesmo_para_assunto_muda = calcular_hash_previa(
+        DadosRedacao(para=["a@x.com"], assunto="Um"), alias, html
+    )
+    assert mesmo_para_assunto_muda != para_a

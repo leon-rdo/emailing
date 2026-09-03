@@ -59,7 +59,9 @@ def test_previa_mostra_html_sanitizado_no_iframe(client, logado):
     assert "<script>" not in conteudo  # nunca sem escapar, em lugar nenhum
     inicio_previa = conteudo.index("previa-iframe")
     assert "alert(1)" not in conteudo[inicio_previa:]
-    assert 'name="hash_previa"' not in conteudo  # Etapa 5 ainda não tem botão Enviar
+    # Depois de uma prévia, o botão Enviar e o hash que a amarra aparecem.
+    assert 'name="hash_previa"' in conteudo
+    assert 'value="enviar"' in conteudo
 
 
 @DOMINIOS
@@ -136,6 +138,95 @@ def test_anexo_com_extensao_bloqueada_mostra_erro(client, logado, tmp_path, sett
     assert resposta.status_code == 200
     assert b"n\xc3\xa3o permitido" in resposta.content
     assert resposta.context["previa"] is None
+
+
+@DOMINIOS
+def test_enviar_sem_previa_nao_envia(client, logado):
+    """Sem hash_previa (ou vazio), o acao=enviar não bate com hash nenhum."""
+    from django.core import mail
+
+    from mensagens.models import RegistroEnvio
+
+    resposta = client.post(
+        reverse("mensagens:inicio"),
+        {"acao": "enviar", "alias": "financeiro", "para": "c@x.com", "corpo": "<p>oi</p>"},
+    )
+    assert resposta.status_code == 200  # cai de volta na prévia, não redireciona
+    assert len(mail.outbox) == 0
+    assert RegistroEnvio.objects.count() == 0
+
+
+@DOMINIOS
+def test_previa_depois_enviar_envia_de_verdade(client, logado):
+    from django.core import mail
+
+    from mensagens.models import RegistroEnvio
+
+    dados = {
+        "alias": "financeiro", "para": "cliente@example.com",
+        "assunto": "Oi", "corpo": "<p>Olá</p>",
+    }
+
+    previa = client.post(reverse("mensagens:inicio"), {**dados, "acao": "previa"})
+    hash_previa = previa.context["previa"]["hash"]
+
+    resposta = client.post(
+        reverse("mensagens:inicio"),
+        {**dados, "acao": "enviar", "hash_previa": hash_previa},
+    )
+
+    assert resposta.status_code == 302
+    assert len(mail.outbox) == 1
+    assert mail.outbox[0].to == ["cliente@example.com"]
+
+    registro = RegistroEnvio.objects.get()
+    assert registro.status == RegistroEnvio.Status.ENVIADO
+    assert resposta.url == reverse("mensagens:registro", args=[registro.pk])
+
+
+@DOMINIOS
+def test_editar_apos_previa_e_enviar_recusa_e_mostra_nova_previa(client, logado):
+    """Hash desatualizado: o envio é recusado e a prévia é refeita, não perdida."""
+    from django.core import mail
+
+    dados = {"alias": "financeiro", "para": "c@x.com", "corpo": "<p>oi</p>"}
+    previa = client.post(reverse("mensagens:inicio"), {**dados, "acao": "previa"})
+    hash_velho = previa.context["previa"]["hash"]
+
+    resposta = client.post(
+        reverse("mensagens:inicio"),
+        {
+            "alias": "financeiro", "para": "c@x.com", "corpo": "<p>texto mudou</p>",
+            "acao": "enviar", "hash_previa": hash_velho,
+        },
+    )
+
+    assert resposta.status_code == 200  # não redireciona: não enviou
+    assert len(mail.outbox) == 0
+    assert resposta.context["previa"] is not None
+    assert "texto mudou" in resposta.context["previa"]["html"]
+    conteudo = resposta.content.decode()
+    assert "mudou desde a última prévia" in conteudo
+
+
+@DOMINIOS
+def test_envio_bem_sucedido_redireciona_para_fora_da_url_de_envio(client, logado):
+    """A proteção real contra duplicar no F5 é estrutural: depois de enviar, a
+    URL na barra de endereço vira a do registro (GET), não mais a do POST de
+    envio — um refresh ali reemite um GET inofensivo, não o envio de novo.
+    O que resta depois disso (dois cliques quase simultâneos no botão, antes
+    do redirecionamento) é coberto no navegador, desabilitando o botão no
+    clique — não em código Python testável por aqui."""
+    dados = {"alias": "financeiro", "para": "c@x.com", "corpo": "<p>oi</p>"}
+    previa = client.post(reverse("mensagens:inicio"), {**dados, "acao": "previa"})
+    hash_previa = previa.context["previa"]["hash"]
+
+    resposta = client.post(
+        reverse("mensagens:inicio"), {**dados, "acao": "enviar", "hash_previa": hash_previa}
+    )
+
+    assert resposta.status_code == 302
+    assert resposta.url.startswith("/historico/")
 
 
 @DOMINIOS
