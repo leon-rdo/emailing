@@ -23,6 +23,37 @@ def test_css_da_folha_vira_estilo_inline():
     assert "padding: 14px 32px" in limpo  # o link também recebeu o estilo
 
 
+DOCUMENTO_COMPLETO = """<!DOCTYPE html><html lang="pt-BR"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width">
+<title>Email de Teste - Plataforma de Emailing</title>
+<style>.a{color:red}</style></head>
+<body><div class="a">Conteúdo de verdade</div></body></html>"""
+
+
+def test_titulo_do_documento_nao_vaza_como_texto():
+    """Sem `title` em clean_content_tags, o nh3 tirava a tag e deixava o texto:
+    o título do documento aparecia como primeira linha visível do e-mail —
+    visto num envio real."""
+    limpo = limpar_html(DOCUMENTO_COMPLETO)
+    assert "Plataforma de Emailing" not in limpo
+    assert "Conteúdo de verdade" in limpo
+    assert "Plataforma de Emailing" not in html_para_texto(limpo)
+
+
+def test_documento_completo_mantem_style_e_css_embutido():
+    limpo = limpar_html(DOCUMENTO_COMPLETO)
+    assert "<style>" in limpo
+    assert "color: red" in limpo  # a regra virou estilo inline na div
+
+
+def test_style_nao_sai_com_atributo_style_proprio():
+    """O css-inline aplica as regras de `*` em todo elemento, inclusive no
+    próprio <style>. Não afeta a renderização, mas suja o "ver original"."""
+    limpo = limpar_html("<style>*{margin:0}</style><p>oi</p>")
+    assert "<style style=" not in limpo
+    assert "<style>" in limpo
+
+
 def test_media_query_sobrevive_no_style():
     """@media não tem como virar inline — o <style> tem que sobreviver."""
     limpo = limpar_html(TEMPLATE_COM_FOLHA_DE_ESTILO)

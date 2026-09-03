@@ -67,10 +67,23 @@ _ATRIBUTOS = {
 
 _ESQUEMAS_URL = {"http", "https", "mailto", "tel", "cid"}
 
-# O nh3 traz `style` na lista de tags removidas junto com o conteúdo. Para
-# manter o `<style>`, ele precisa sair daqui — e o nh3 recusa (com panic) se a
-# mesma tag aparecer nas duas listas.
-_TAGS_REMOVIDAS_COM_CONTEUDO = {"script", "iframe", "object", "embed", "form", "noscript"}
+# Tag removida COM o conteúdo. Sem estar aqui, o nh3 tira só a tag e mantém o
+# texto — o que é o certo para `<span>`, e desastroso para `<title>`: o título
+# do documento vazava como primeira linha visível do e-mail (visto num envio
+# real, "Email de Teste - Plataforma de Emailing" antes do conteúdo).
+#
+# `style` NÃO entra aqui, porque queremos manter o `<style>` pelas media
+# queries — e o nh3 recusa (com panic) se a mesma tag aparecer nas duas listas.
+_TAGS_REMOVIDAS_COM_CONTEUDO = {
+    "script", "iframe", "object", "embed", "form", "noscript",
+    # Tudo que pertence ao <head> de um documento e não é conteúdo de e-mail.
+    "title", "head", "meta", "link", "base", "template",
+}
+
+# O css-inline aplica as regras que casam com `*` em todo elemento — inclusive
+# no próprio `<style>`, que sai com um `style="…"` inútil. Não afeta a
+# renderização (a tag não é desenhada), mas suja quem abrir "ver original".
+_ATRIBUTO_EM_STYLE = re.compile(r"(<style)\s+[^>]*?(>)", re.IGNORECASE)
 
 
 def embutir_css(bruto: str) -> str:
@@ -91,7 +104,7 @@ def limpar_html(bruto: str) -> str:
     """HTML do editor (ou colado) → HTML pronto para enviar."""
     if not bruto or not bruto.strip():
         return ""
-    return nh3.clean(
+    limpo = nh3.clean(
         embutir_css(bruto),
         tags=_TAGS,
         attributes=_ATRIBUTOS,
@@ -100,6 +113,7 @@ def limpar_html(bruto: str) -> str:
         link_rel="noopener noreferrer",
         strip_comments=True,
     )
+    return _ATRIBUTO_EM_STYLE.sub(r"\1\2", limpo).strip()
 
 
 # --- HTML → texto simples, para a parte multipart/alternative --------------
