@@ -10,6 +10,13 @@ ALVO="${ALVO:-/var/www/emailing}"
 UV="${UV:-/usr/local/bin/uv}"
 SERVICO="${SERVICO:-emailing}"
 PORTA="${PORTA:-8010}"
+DOMINIO="${DOMINIO:-emailing.leonardocosta.dev}"
+
+# O interpretador que o uv gerencia precisa ficar fora de /root: o serviço roda
+# como `emailing`, e mesmo com permissão de leitura o ProtectHome=true do unit
+# tornaria /root inacessível. Sem isto o .venv vira um symlink quebrado para o
+# processo e o systemd falha com 203/EXEC.
+export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-/opt/uv-python}"
 
 cd "$ALVO"
 
@@ -25,11 +32,12 @@ echo "== estático =="
 echo "== configuração =="
 "$UV" run --no-dev manage.py verificar_config
 
-# migrate e collectstatic rodam como root; o serviço roda como `emailing` e
-# precisa escrever no banco e nos anexos.
+# O código é de root e só de leitura para o serviço; o estado é do serviço.
+chown -R root:www-data "$ALVO/config" "$ALVO/mensagens" "$ALVO/deploy" "$ALVO/manage.py"
 chown -R emailing:www-data "$ALVO/data" "$ALVO/staticfiles"
-chmod 600 "$ALVO/.env"
 chown emailing:www-data "$ALVO/.env"
+chmod 600 "$ALVO/.env"
+chmod -R a+rX "$UV_PYTHON_INSTALL_DIR" "$ALVO/.venv"
 
 echo "== reiniciando =="
 systemctl restart "$SERVICO"
@@ -40,6 +48,10 @@ systemctl is-active --quiet "$SERVICO" || {
     exit 1
 }
 
+# O Host precisa bater com ALLOWED_HOSTS (senão 400) e o X-Forwarded-Proto
+# precisa dizer https (senão o SECURE_SSL_REDIRECT responde 301) — exatamente o
+# que o nginx envia.
 curl -fsS -o /dev/null -w 'login local: HTTP %{http_code}\n' \
+    -H "Host: ${DOMINIO}" -H 'X-Forwarded-Proto: https' \
     "http://127.0.0.1:${PORTA}/entrar/"
 echo "ok"

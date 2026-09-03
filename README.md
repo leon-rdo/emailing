@@ -83,6 +83,24 @@ pelo certbot, processo sob systemd. Não há Docker nessa máquina.
 - **Sempre `nginx -t` antes do reload**: um erro de sintaxe derruba
   `api.leonardocosta.dev` e `leonardocosta.dev` junto.
 
+Atualizações depois da primeira vez: sincronize o código e rode
+`bash /var/www/emailing/deploy/implantar.sh` como root — ele cuida de
+dependências, migrações, estático, permissões e restart, e falha se o serviço
+não subir.
+
+### Primeiro acesso
+
+Sem um usuário e um dispositivo TOTP não há como entrar (em produção
+`OTP_OBRIGATORIO="1"`):
+
+```bash
+ssh leonardo_contabo
+cd /var/www/emailing
+uv run --no-dev manage.py createsuperuser
+uv run --no-dev manage.py criar_totp <usuário>   # escaneie o QR
+chown -R emailing:www-data data                  # o banco acabou de mudar de dono
+```
+
 ## Estado
 
 `DATA_DIR` (`data/` em dev, `/var/www/emailing/data` em produção) guarda o
