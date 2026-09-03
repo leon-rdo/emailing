@@ -2,29 +2,17 @@
 
 import pytest
 from django.core import mail
-from django.test import override_settings
 
-from mensagens.aliases import alias_por_slug
 from mensagens.envio import enviar_email
 from mensagens.models import RegistroEnvio
 from mensagens.montagem import DadosRedacao
 
 pytestmark = pytest.mark.django_db
-DOMINIOS = override_settings(ALIAS_ALLOWED_DOMAINS=["leonardocosta.dev"])
-BASE = {
-    "SMTP_USER": "me@leonardocosta.dev",
-    "SMTP_PASSWORD": "segredo",
-    "ALIASES": "financeiro",
-    "ALIAS_FINANCEIRO_ADDRESS": "financeiro@leonardocosta.dev",
-    "ALIAS_FINANCEIRO_NAME": "Leonardo Costa",
-}
 
 
-@DOMINIOS
-def test_envio_bem_sucedido(ambiente_de_aliases, settings):
+def test_envio_bem_sucedido(alias_de_teste, settings):
     settings.MESSAGE_ID_DOMAIN = "leonardocosta.dev"
-    ambiente_de_aliases(**BASE)
-    alias = alias_por_slug("financeiro")
+    alias = alias_de_teste
     dados = DadosRedacao(para=["cliente@example.com"], assunto="Oi", corpo_html="<p>Olá</p>")
 
     registro = enviar_email(alias, dados)
@@ -42,23 +30,19 @@ def test_envio_bem_sucedido(ambiente_de_aliases, settings):
     )
 
 
-@DOMINIOS
-def test_message_id_termina_no_dominio_do_alias(ambiente_de_aliases, settings):
+def test_message_id_termina_no_dominio_do_alias(alias_de_teste, settings):
     settings.MESSAGE_ID_DOMAIN = ""  # vazio → cai no domínio do próprio alias
-    ambiente_de_aliases(**BASE)
-    alias = alias_por_slug("financeiro")
+    alias = alias_de_teste
     registro = enviar_email(alias, DadosRedacao(para=["c@x.com"], corpo_html="oi"))
     assert registro.message_id.endswith("@leonardocosta.dev>")
 
 
-@DOMINIOS
-def test_grava_enviando_antes_de_mandar(ambiente_de_aliases, monkeypatch):
+def test_grava_enviando_antes_de_mandar(alias_de_teste, monkeypatch):
     """O status ENVIANDO existe para o histórico contar a verdade mesmo se o
     processo morrer no meio da chamada de rede — não dá pra observar isso
     depois do fato num teste síncrono, mas dá pra confirmar que o registro é
     criado ANTES do envio, interceptando o ponto de envio."""
-    ambiente_de_aliases(**BASE)
-    alias = alias_por_slug("financeiro")
+    alias = alias_de_teste
 
     capturado = {}
     original_send = mail.EmailMultiAlternatives.send
@@ -74,12 +58,10 @@ def test_grava_enviando_antes_de_mandar(ambiente_de_aliases, monkeypatch):
     assert capturado["status_durante_envio"] == RegistroEnvio.Status.ENVIANDO
 
 
-@DOMINIOS
-def test_falha_de_smtp_grava_status_falhou_e_nao_levanta(ambiente_de_aliases, monkeypatch):
+def test_falha_de_smtp_grava_status_falhou_e_nao_levanta(alias_de_teste, monkeypatch):
     from smtplib import SMTPAuthenticationError
 
-    ambiente_de_aliases(**BASE)
-    alias = alias_por_slug("financeiro")
+    alias = alias_de_teste
 
     def _quebrar(self, *args, **kwargs):
         raise SMTPAuthenticationError(535, b"credenciais invalidas")
@@ -93,15 +75,13 @@ def test_falha_de_smtp_grava_status_falhou_e_nao_levanta(ambiente_de_aliases, mo
     assert len(mail.outbox) == 0
 
 
-@DOMINIOS
-def test_anexos_persistidos_no_registro(ambiente_de_aliases, tmp_path, settings):
+def test_anexos_persistidos_no_registro(alias_de_teste, tmp_path, settings):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
     from mensagens.anexos import criar_token, salvar_anexo
 
     settings.RASCUNHOS_DIR = tmp_path
-    ambiente_de_aliases(**BASE)
-    alias = alias_por_slug("financeiro")
+    alias = alias_de_teste
     token = criar_token()
     salvar_anexo(token, SimpleUploadedFile("nota.pdf", b"conteudo-pdf"))
 
@@ -113,15 +93,13 @@ def test_anexos_persistidos_no_registro(ambiente_de_aliases, tmp_path, settings)
     assert len(mail.outbox[0].attachments) == 1
 
 
-@DOMINIOS
-def test_rascunho_de_anexo_e_limpo_apos_envio(ambiente_de_aliases, tmp_path, settings):
+def test_rascunho_de_anexo_e_limpo_apos_envio(alias_de_teste, tmp_path, settings):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
     from mensagens.anexos import criar_token, listar_anexos, salvar_anexo
 
     settings.RASCUNHOS_DIR = tmp_path
-    ambiente_de_aliases(**BASE)
-    alias = alias_por_slug("financeiro")
+    alias = alias_de_teste
     token = criar_token()
     salvar_anexo(token, SimpleUploadedFile("nota.pdf", b"x"))
 
@@ -130,10 +108,8 @@ def test_rascunho_de_anexo_e_limpo_apos_envio(ambiente_de_aliases, tmp_path, set
     assert listar_anexos(token) == []
 
 
-@DOMINIOS
-def test_corpo_html_guardado_conforme_a_flag(ambiente_de_aliases, settings):
-    ambiente_de_aliases(**BASE)
-    alias = alias_por_slug("financeiro")
+def test_corpo_html_guardado_conforme_a_flag(alias_de_teste, settings):
+    alias = alias_de_teste
     dados = DadosRedacao(para=["c@x.com"], corpo_html="<p>guarde isto</p>")
 
     settings.GUARDAR_CORPO_ENVIADO = True
@@ -145,10 +121,8 @@ def test_corpo_html_guardado_conforme_a_flag(ambiente_de_aliases, settings):
     assert sem_guarda.corpo_html == ""
 
 
-@DOMINIOS
-def test_in_reply_to_e_referencias_persistidos(ambiente_de_aliases):
-    ambiente_de_aliases(**BASE)
-    alias = alias_por_slug("financeiro")
+def test_in_reply_to_e_referencias_persistidos(alias_de_teste):
+    alias = alias_de_teste
     dados = DadosRedacao(
         para=["c@x.com"], corpo_html="oi",
         in_reply_to="<orig@x>", referencias="<a@x> <orig@x>",

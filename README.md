@@ -31,29 +31,40 @@ uv run pytest
 
 ## Configuração
 
-Tudo vem de variável de ambiente; `.env.example` lista cada uma com descrição.
-Em produção quem injeta é o `EnvironmentFile=` do systemd, e é por isso que
-**não existe valor multilinha**: a assinatura HTML de cada alias mora num
-arquivo cujo caminho é que vai na variável.
+**Contas e aliases ficam no admin**, em `/admin/`. O `.env` guarda só o que é
+de infraestrutura (`SECRET_KEY`, `ALLOWED_HOSTS`, limites) — nada de e-mail.
 
-### Cadastrar um alias
+### Cadastrar uma conta e um alias
 
-```dotenv
-ALIASES="financeiro,contato"
-ALIAS_FINANCEIRO_ADDRESS="financeiro@leonardocosta.dev"
-ALIAS_FINANCEIRO_NAME="Leonardo Costa"
+1. **Contas de e-mail** → adicionar: servidor, porta, a caixa que autentica, a
+   senha, e STARTTLS (587) ou SSL direto (465). Uma conta por provedor.
+2. **Aliases** → adicionar: o endereço pelo qual você quer enviar, o nome de
+   exibição, e a conta que autentica. A assinatura HTML do alias vai no mesmo
+   formulário.
+
+Um alias só pode usar um domínio autorizado pela conta (campo *domínios
+permitidos*; vazio = o domínio da própria conta). Essa trava não é burocracia:
+um `From:` fora do domínio autenticado quebra o alinhamento do DMARC e a
+mensagem cai em spam.
+
+Uma conta serve vários aliases — é o motivo do projeto existir. E contas
+diferentes podem estar em provedores diferentes: dá para ter Titan e Hostinger
+lado a lado, cada um com seus aliases.
+
+> **A senha SMTP é guardada cifrada com uma chave derivada do `SECRET_KEY`.**
+> Trocar o `SECRET_KEY` torna as senhas guardadas ilegíveis — é preciso
+> redigitá-las no admin. O `manage.py verificar_config` avisa quando isso
+> acontece.
+
+### Vindo da versão que usava `.env`
+
+```bash
+uv run manage.py importar_aliases_do_env
 ```
 
-O `<SLUG>` é o nome do alias em maiúsculas com todo caractere não-alfanumérico
-virando `_` (`nota-fiscal` → `ALIAS_NOTA_FISCAL_*`). Se ficar em dúvida, rode
-`manage.py verificar_config`: ele imprime o prefixo exato de cada alias.
-
-A assinatura vai em `<DATA_DIR>/assinaturas/<slug>.html` e é lida do disco a
-cada pré-visualização — editar o arquivo não exige reiniciar o serviço.
-
-`ALIAS_ALLOWED_DOMAINS` é a trava importante: um `From:` fora do domínio
-autenticado não fica alinhado ao DMARC e a mensagem vai para spam, então o app
-se recusa a subir com um alias de domínio de fora.
+Lê `ALIASES`/`ALIAS_*`/`SMTP_*` e os arquivos de assinatura, cria a conta e os
+aliases no banco. É idempotente. Depois disso essas variáveis podem sair do
+`.env` (o `SECRET_KEY` não: é ele que abre as senhas).
 
 ### Segundo fator
 
@@ -126,8 +137,24 @@ Em produção, `limpar_rascunhos` vale um `cron` — não há limpeza automátic
 0 4 * * * cd /var/www/emailing && /usr/local/bin/uv run --no-dev manage.py limpar_rascunhos
 ```
 
+## Entregabilidade: o que precisa estar no DNS
+
+O app envia com `From:` diferente da conta que autentica. Para isso não cair em
+spam, o **domínio do `From:` precisa estar alinhado** com o que o DMARC vê:
+
+- **SPF** — inclua o provedor no registro do domínio. O envelope sai no próprio
+  alias, então o SPF do domínio dele é o que vale.
+- **DKIM** — ative no painel do provedor. É a única das duas assinaturas que
+  **sobrevive a encaminhamento**: sem DKIM, um e-mail encaminhado quebra o SPF
+  e o DMARC falha junto.
+- **DMARC** — `p=none` para observar, `p=quarantine`/`p=reject` depois de
+  confirmar que SPF e DKIM passam.
+
+Enquanto SPF e DKIM alinharem, aliases do mesmo domínio funcionam sem
+configuração adicional — não existe SPF ou DKIM "por caixa", só por domínio.
+
 ## Estado
 
 `DATA_DIR` (`data/` em dev, `/var/www/emailing/data` em produção) guarda o
-banco SQLite, as assinaturas e os anexos ainda não enviados. **Apagar esse
-diretório apaga o histórico de envios e as assinaturas** — não há outra cópia.
+banco SQLite e os anexos ainda não enviados. **Apagar esse diretório apaga o
+histórico de envios, as contas e os aliases** — não há outra cópia.

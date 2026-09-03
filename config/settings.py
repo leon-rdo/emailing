@@ -75,8 +75,12 @@ USE_TZ = True
 # ---------------------------------------------------------------------------
 
 DATA_DIR = Path(os.environ.get("DATA_DIR", BASE_DIR / "data"))
-SIGNATURES_DIR = Path(os.environ.get("SIGNATURES_DIR", DATA_DIR / "assinaturas"))
 RASCUNHOS_DIR = Path(os.environ.get("RASCUNHOS_DIR", DATA_DIR / "rascunhos"))
+
+# As assinaturas já moraram aqui, uma por arquivo; hoje vivem no próprio alias,
+# no banco. O diretório continua sendo criado só porque o
+# `importar_aliases_do_env` ainda lê dele na migração.
+SIGNATURES_DIR = Path(os.environ.get("SIGNATURES_DIR", DATA_DIR / "assinaturas"))
 
 for _dir in (DATA_DIR, SIGNATURES_DIR, RASCUNHOS_DIR):
     _dir.mkdir(parents=True, exist_ok=True)
@@ -259,36 +263,21 @@ STORAGES = {
 
 
 # ---------------------------------------------------------------------------
-# SMTP — valores globais; cada alias pode sobrescrever (ver mensagens/aliases.py)
+# E-mail
 # ---------------------------------------------------------------------------
+#
+# Contas e aliases moram no banco, gerenciados pelo admin (mensagens/models.py):
+# host, porta, credencial, cifra e domínios permitidos são por conta. Aqui
+# ficam só os padrões que não pertencem a nenhuma conta em particular.
+#
+# As variáveis SMTP_*/ALIAS_* do ambiente sobrevivem apenas como fonte para o
+# `manage.py importar_aliases_do_env`, que lê direto de os.environ.
 
-SMTP_PADRAO = {
-    "host": os.environ.get("SMTP_HOST", "smtpout.secureserver.net"),
-    "port": env_int("SMTP_PORT", 587),
-    "username": os.environ.get("SMTP_USER", ""),
-    "password": os.environ.get("SMTP_PASSWORD", ""),
-    "use_tls": env_bool("SMTP_USE_TLS", True),
-    "use_ssl": env_bool("SMTP_USE_SSL", False),
-    # O padrão do Django é None, que bloqueia a thread para sempre.
-    "timeout": env_int("SMTP_TIMEOUT", 20),
-}
+# Rede: o padrão do Django é None, que bloqueia a thread para sempre. Cada
+# conta tem o seu (ContaEmail.timeout); este é a rede de segurança de qualquer
+# envio que não passe por uma conta.
+EMAIL_TIMEOUT = env_int("SMTP_TIMEOUT", 20)
 
-# Se definida, vira o MAIL FROM de todo envio no lugar do alias. Escotilha caso
-# o Titan passe a rejeitar envelope de alias: o cabeçalho From: segue o alias e
-# o DMARC continua passando por DKIM.
-SMTP_ENVELOPE_FROM = os.environ.get("SMTP_ENVELOPE_FROM", "")
-
-# A fronteira dura do DMARC: From: fora destes domínios não fica alinhado.
-# O boot falha se algum alias sair daqui.
-ALIAS_ALLOWED_DOMAINS = env_lista("ALIAS_ALLOWED_DOMAINS") or (
-    [SMTP_PADRAO["username"].split("@")[-1]] if "@" in SMTP_PADRAO["username"] else []
-)
-
-# Lado direito do Message-ID gerado e nome usado no EHLO. Vazio → domínio do
-# alias remetente (vários filtros conferem se batem com o From:).
-MESSAGE_ID_DOMAIN = os.environ.get("MESSAGE_ID_DOMAIN", "")
-
-EMAIL_TIMEOUT = SMTP_PADRAO["timeout"]
 # Sem isto o Date: sai "-0000", que na RFC 5322 significa "hora local
 # desconhecida" e irrita alguns filtros.
 EMAIL_USE_LOCALTIME = True

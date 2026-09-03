@@ -1,19 +1,191 @@
-"""Log de envios.
+"""Contas de e-mail, aliases e o log de envios.
 
-Os quatro campos pedidos pelo requisito são `criado_em`, `remetente`, `para` e
-`assunto`. Os demais se pagam sozinhos: `message_id` é o que transforma este
-log num armazém de threads (usado para "responder a algo que eu enviei" — ver
-`eml.py` e a Etapa 8) e o que permite achar a mensagem na caixa real;
-`in_reply_to`/`referencias` são o que torna uma thread depurável; `status` e
-`erro` são o que impede acreditar que um envio funcionou quando falhou —
-`status=ENVIANDO`, gravado antes da chamada SMTP, é o registro de que o envio
-foi tentado.
+`ContaEmail` é uma caixa real que autentica no servidor de saída; `Alias` é um
+endereço pelo qual se envia usando aquela conta. A separação existe porque uma
+conta costuma servir vários aliases (é o motivo do projeto existir), e porque
+contas diferentes moram em servidores diferentes — Titan, Hostinger, o que
+for.
 
 Nomes de domínio em português; `message_id`/`in_reply_to` em inglês porque são
 nomes de cabeçalho da RFC 5322, não vocabulário do domínio.
 """
 
+from email.utils import formataddr
+
+from django.core.exceptions import ValidationError
 from django.db import models
+
+from .cripto import cifrar, decifrar
+
+
+class ContaEmail(models.Model):
+    """Uma caixa real que autentica no SMTP.
+
+    A senha é guardada cifrada (ver `cripto.py`): o admin nunca a exibe, só
+    aceita uma nova.
+    """
+
+    nome = models.CharField(
+        "nome", max_length=100, unique=True,
+        help_text='Só para você reconhecer, ex.: "Titan — leonardocosta.dev".',
+    )
+    host = models.CharField("servidor SMTP", max_length=255)
+    porta = models.PositiveIntegerField("porta", default=587)
+    usuario = models.CharField(
+        "conta que autentica", max_length=320,
+        help_text="A caixa real, não o alias. Ex.: me@leonardocosta.dev",
+    )
+    senha_cifrada = models.TextField("senha", blank=True)
+    usar_tls = models.BooleanField("STARTTLS (porta 587)", default=True)
+    usar_ssl = models.BooleanField("SSL/TLS direto (porta 465)", default=False)
+    timeout = models.PositiveIntegerField("timeout (s)", default=20)
+
+    dominios_permitidos = models.CharField(
+        "domínios permitidos", max_length=500, blank=True,
+        help_text=(
+            "Separados por vírgula. Vazio = só o domínio da conta que autentica. "
+            "Enviar com From: fora daqui quebra o alinhamento do DMARC e a "
+            "mensagem cai em spam."
+        ),
+    )
+    envelope_from = models.EmailField(
+        "envelope fixo", blank=True,
+        help_text=(
+            "Deixe vazio (o normal): o envelope vira o próprio alias. Só preencha "
+            "se este provedor recusar envelope de alias."
+        ),
+    )
+    ativa = models.BooleanField("ativa", default=True)
+
+    class Meta:
+        ordering = ["nome"]
+        verbose_name = "conta de e-mail"
+        verbose_name_plural = "contas de e-mail"
+
+    def __str__(self):
+        return f"{self.nome} ({self.usuario})"
+
+    @property
+    def senha(self) -> str:
+        return decifrar(self.senha_cifrada)
+
+    @senha.setter
+    def senha(self, valor: str) -> None:
+        self.senha_cifrada = cifrar(valor)
+
+    @property
+    def dominios(self) -> list[str]:
+        if self.dominios_permitidos.strip():
+            return [d.strip().lower() for d in self.dominios_permitidos.split(",") if d.strip()]
+        return [self.usuario.rpartition("@")[2].lower()] if "@" in self.usuario else []
+
+    def clean(self):
+        if self.usar_tls and self.usar_ssl:
+            raise ValidationError(
+                {"usar_ssl": "STARTTLS e SSL direto são mutuamente exclusivos."}
+            )
+        if not self.usar_tls and not self.usar_ssl:
+            raise ValidationError(
+                {"usar_tls": "Escolha STARTTLS (587) ou SSL direto (465) — sem cifra, não."}
+            )
+
+
+class Alias(models.Model):
+    """Um endereço pelo qual se envia, usando a conta associada."""
+
+    conta = models.ForeignKey(
+        ContaEmail, on_delete=models.PROTECT, related_name="aliases", verbose_name="conta"
+    )
+    slug = models.SlugField(
+        "identificador", unique=True,
+        help_text="Usado na URL e nos comandos. Ex.: financeiro",
+    )
+    endereco = models.EmailField("endereço", unique=True)
+    nome_exibicao = models.CharField(
+        "nome de exibição", max_length=200, blank=True,
+        help_text="O que aparece antes do endereço no From:.",
+    )
+    reply_to = models.EmailField(
+        "Reply-To", blank=True,
+        help_text="Só se as respostas devem ir para outro endereço.",
+    )
+    assinatura_html = models.TextField(
+        "assinatura (HTML)", blank=True,
+        help_text="Anexada ao fim de toda mensagem deste alias. Não passa pelo sanitizador.",
+    )
+    ativo = models.BooleanField("ativo", default=True)
+    ordem = models.PositiveIntegerField(
+        "ordem", default=0, help_text="Ordem no seletor; o menor vem primeiro e já vem escolhido."
+    )
+
+    class Meta:
+        ordering = ["ordem", "endereco"]
+        verbose_name = "alias"
+        verbose_name_plural = "aliases"
+
+    def __str__(self):
+        return f"{self.slug} <{self.endereco}>"
+
+    # --- a interface que o resto do app consome -------------------------
+    #
+    # Estes nomes são os mesmos de quando os aliases vinham do ambiente, de
+    # propósito: montagem.py, envio.py e as views não precisaram saber que a
+    # origem mudou.
+
+    @property
+    def nome(self) -> str:
+        return self.nome_exibicao
+
+    @property
+    def dominio(self) -> str:
+        return self.endereco.rpartition("@")[2]
+
+    @property
+    def remetente(self) -> str:
+        """O valor do cabeçalho `From:`.
+
+        Sempre via `formataddr`: montar `"Nome <addr>"` à mão produz cabeçalho
+        inválido quando o nome tem acento.
+        """
+        if not self.nome_exibicao:
+            return self.endereco
+        return formataddr((self.nome_exibicao, self.endereco))
+
+    @property
+    def envelope(self) -> str:
+        """O `MAIL FROM` do SMTP — independente do cabeçalho `From:`."""
+        return self.conta.envelope_from or self.endereco
+
+    @property
+    def dominio_message_id(self) -> str:
+        """Vários filtros conferem se o domínio do Message-ID bate com o From."""
+        return self.dominio
+
+    @property
+    def smtp(self) -> dict:
+        """Kwargs prontos para `django.core.mail.get_connection`."""
+        return {
+            "host": self.conta.host,
+            "port": self.conta.porta,
+            "username": self.conta.usuario,
+            "password": self.conta.senha,
+            "use_tls": self.conta.usar_tls,
+            "use_ssl": self.conta.usar_ssl,
+            "timeout": self.conta.timeout,
+        }
+
+    def clean(self):
+        if not self.conta_id:
+            return
+        dominios = self.conta.dominios
+        if dominios and self.dominio.lower() not in dominios:
+            raise ValidationError({
+                "endereco": (
+                    f"O domínio '{self.dominio}' não está entre os permitidos da conta "
+                    f"({', '.join(dominios)}). Enviar com From: fora do domínio "
+                    "autenticado quebra o alinhamento do DMARC e a mensagem vai para spam."
+                )
+            })
 
 
 class RegistroEnvio(models.Model):

@@ -13,18 +13,29 @@ from smtplib import SMTPException
 
 from django.conf import settings
 from django.core.mail import get_connection
+from django.core.mail.utils import DNS_NAME
 
-from .aliases import Alias
 from .anexos import ler_anexos, limpar_rascunho
-from .models import RegistroEnvio
+from .models import Alias, RegistroEnvio
 from .montagem import DadosRedacao, montar_email
 
 logger = logging.getLogger(__name__)
 
 
+def _fixar_nome_no_ehlo(dominio: str) -> None:
+    """Faz o SMTP se apresentar com o domínio do remetente.
+
+    Sem isto o Django usa `socket.getfqdn()` no EHLO, que numa VPS vira algo
+    como `vmi2934480` — alguns MTAs pontuam mal quem se apresenta assim. É por
+    envio, e não no boot, porque cada conta pode estar num domínio diferente.
+    """
+    DNS_NAME._fqdn = dominio
+
+
 def enviar_email(alias: Alias, dados: DadosRedacao, token_anexos: str = "") -> RegistroEnvio:
     """Monta, registra e envia. Nunca levanta — o status do retorno é a resposta."""
     message_id = make_msgid(domain=alias.dominio_message_id)
+    _fixar_nome_no_ehlo(alias.dominio_message_id)
     anexos = ler_anexos(token_anexos)
     mensagem = montar_email(dados, alias, anexos=anexos, message_id=message_id)
     html_final = mensagem.alternatives[0][0]

@@ -3,18 +3,10 @@
 from email.utils import parseaddr
 
 import pytest
-from django.test import override_settings
 
 from mensagens.forms import FormularioRedacao, dividir_enderecos
 
 pytestmark = pytest.mark.django_db
-DOMINIOS = override_settings(ALIAS_ALLOWED_DOMAINS=["leonardocosta.dev"])
-BASE = {
-    "SMTP_USER": "me@leonardocosta.dev",
-    "SMTP_PASSWORD": "segredo",
-    "ALIASES": "financeiro",
-    "ALIAS_FINANCEIRO_ADDRESS": "financeiro@leonardocosta.dev",
-}
 
 
 def test_divide_por_virgula():
@@ -45,11 +37,9 @@ def test_nome_com_virgula_entre_aspas_nao_quebra_a_divisao():
     assert endereco == "joao@x.com"
 
 
-@DOMINIOS
-def test_formulario_recusa_sem_destinatario(ambiente_de_aliases):
+def test_formulario_recusa_sem_destinatario(alias_de_teste):
     from mensagens.aliases import carregar_aliases
 
-    ambiente_de_aliases(**BASE)
     form = FormularioRedacao(
         {"alias": "financeiro", "para": "", "corpo": "<p>oi</p>", "acao": "previa"},
         aliases=carregar_aliases(),
@@ -58,11 +48,9 @@ def test_formulario_recusa_sem_destinatario(ambiente_de_aliases):
     assert "para" in form.errors
 
 
-@DOMINIOS
-def test_formulario_recusa_endereco_invalido(ambiente_de_aliases):
+def test_formulario_recusa_endereco_invalido(alias_de_teste):
     from mensagens.aliases import carregar_aliases
 
-    ambiente_de_aliases(**BASE)
     form = FormularioRedacao(
         {"alias": "financeiro", "para": "isto-nao-e-email", "corpo": "oi"},
         aliases=carregar_aliases(),
@@ -70,11 +58,9 @@ def test_formulario_recusa_endereco_invalido(ambiente_de_aliases):
     assert not form.is_valid()
 
 
-@DOMINIOS
-def test_formulario_recusa_excesso_de_destinatarios(ambiente_de_aliases, settings):
+def test_formulario_recusa_excesso_de_destinatarios(alias_de_teste, settings):
     from mensagens.aliases import carregar_aliases
 
-    ambiente_de_aliases(**BASE)
     settings.MAX_DESTINATARIOS = 2
     muitos = ", ".join(f"pessoa{i}@x.com" for i in range(3))
     form = FormularioRedacao(
@@ -84,11 +70,9 @@ def test_formulario_recusa_excesso_de_destinatarios(ambiente_de_aliases, setting
     assert any("MAX_DESTINATARIOS" not in e and "limite" in e for e in form.non_field_errors())
 
 
-@DOMINIOS
-def test_formulario_valido_com_para_e_cc(ambiente_de_aliases):
+def test_formulario_valido_com_para_e_cc(alias_de_teste):
     from mensagens.aliases import carregar_aliases
 
-    ambiente_de_aliases(**BASE)
     form = FormularioRedacao(
         {"alias": "financeiro", "para": "c@x.com", "cc": "d@x.com", "corpo": "<p>oi</p>"},
         aliases=carregar_aliases(),

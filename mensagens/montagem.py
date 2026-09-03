@@ -15,8 +15,8 @@ from dataclasses import dataclass, field
 
 from django.core.mail import EmailMultiAlternatives
 
-from .aliases import Alias
 from .assinaturas import assinatura_de
+from .models import Alias
 from .saneamento import html_para_texto, limpar_html
 
 

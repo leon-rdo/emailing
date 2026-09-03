@@ -1,5 +1,4 @@
 from django.apps import AppConfig
-from django.conf import settings
 
 
 class MensagensConfig(AppConfig):
@@ -7,30 +6,9 @@ class MensagensConfig(AppConfig):
     name = "mensagens"
     verbose_name = "Mensagens"
 
-    def ready(self):
-        from . import checks  # noqa: F401  — registra os system checks dos aliases
-
-        self._fixar_dns_name()
-
-    @staticmethod
-    def _fixar_dns_name():
-        """Conserta de uma vez o Message-ID e o nome do EHLO.
-
-        O Django gera o `Message-ID` a partir de `django.core.mail.utils.DNS_NAME`,
-        que é `socket.getfqdn()`. Numa máquina qualquer isso vira algo como
-        `<...@leonardo-costa>` — ruim para entregabilidade. E o mesmo `DNS_NAME`
-        também é o `local_hostname` do `EHLO` do SMTP, então o problema é duplo.
-
-        O domínio certo é o do remetente (vários filtros conferem se ele bate
-        com o `From:`), não o host onde o app roda.
-        """
-        from django.core.mail.utils import DNS_NAME
-
-        from .aliases import montar_aliases
-
-        dominio = settings.MESSAGE_ID_DOMAIN
-        if not dominio:
-            aliases, _ = montar_aliases()
-            dominio = aliases[0].dominio if aliases else ""
-        if dominio:
-            DNS_NAME._fqdn = dominio
+    # Nada de validar aliases aqui: eles vivem no banco, e o `ready()` roda
+    # antes de qualquer migração ter rodado. Quem valida agora é o `clean()`
+    # dos modelos (no admin, na hora de salvar) e o `manage.py verificar_config`.
+    #
+    # O ajuste do DNS_NAME (Message-ID e EHLO) também saiu daqui: com contas em
+    # domínios diferentes, ele passou a ser por envio — ver `envio.py`.

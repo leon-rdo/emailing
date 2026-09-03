@@ -1,141 +1,166 @@
-"""Carga e validação dos aliases a partir do ambiente."""
+"""Contas e aliases: cifragem da senha, validação de domínio, consultas."""
 
 import pytest
-from django.core.exceptions import ImproperlyConfigured
+from django.core.exceptions import ValidationError
 from django.test import override_settings
 
-from mensagens.aliases import (
-    Alias,
-    alias_por_slug,
-    carregar_aliases,
-    montar_aliases,
-    nome_variavel,
-)
+from mensagens.aliases import alias_por_slug, carregar_aliases, verificar_aliases
+from mensagens.cripto import SenhaIlegivel, cifrar, decifrar
+from mensagens.models import Alias, ContaEmail
 
-BASE = {
-    "SMTP_USER": "me@leonardocosta.dev",
-    "SMTP_PASSWORD": "segredo-de-teste",
-    "ALIASES": "financeiro,contato",
-    "ALIAS_FINANCEIRO_ADDRESS": "financeiro@leonardocosta.dev",
-    "ALIAS_FINANCEIRO_NAME": "Leonardo Costa",
-    "ALIAS_CONTATO_ADDRESS": "contato@leonardocosta.dev",
-}
-
-DOMINIOS = override_settings(ALIAS_ALLOWED_DOMAINS=["leonardocosta.dev"])
+pytestmark = pytest.mark.django_db
 
 
-def test_nome_variavel_normaliza_o_slug():
-    assert nome_variavel("financeiro", "ADDRESS") == "ALIAS_FINANCEIRO_ADDRESS"
-    assert nome_variavel("nota-fiscal", "NAME") == "ALIAS_NOTA_FISCAL_NAME"
-    assert nome_variavel("a.b c", "SMTP_HOST") == "ALIAS_A_B_C_SMTP_HOST"
+# --- cifragem da senha SMTP -------------------------------------------
 
 
-@DOMINIOS
-def test_carrega_dois_aliases(ambiente_de_aliases):
-    ambiente_de_aliases(**BASE)
-    aliases, erros = montar_aliases()
-    assert erros == []
-    assert [a.slug for a in aliases] == ["financeiro", "contato"]
-    assert isinstance(aliases[0], Alias)
+def test_senha_vai_e_volta():
+    assert decifrar(cifrar("minha-senha")) == "minha-senha"
 
 
-@DOMINIOS
-def test_smtp_cai_no_global_quando_o_alias_nao_sobrescreve(ambiente_de_aliases):
-    ambiente_de_aliases(**BASE)
-    financeiro = carregar_aliases()[0]
-    assert financeiro.smtp["username"] == "me@leonardocosta.dev"
-    assert financeiro.smtp["host"] == "smtpout.secureserver.net"
-    assert financeiro.smtp["use_tls"] is True
+def test_senha_cifrada_nao_contem_o_texto_claro():
+    cifrada = cifrar("minha-senha")
+    assert "minha-senha" not in cifrada
 
 
-@DOMINIOS
-def test_sobrescrita_por_alias_vence_o_global(ambiente_de_aliases):
-    ambiente_de_aliases(
-        **BASE,
-        ALIAS_CONTATO_SMTP_HOST="smtp.outro.com",
-        ALIAS_CONTATO_SMTP_PORT="465",
-        ALIAS_CONTATO_SMTP_USE_TLS="0",
-        ALIAS_CONTATO_SMTP_USE_SSL="1",
-    )
-    contato = alias_por_slug("contato")
-    assert contato.smtp["host"] == "smtp.outro.com"
-    assert contato.smtp["port"] == 465
-    assert contato.smtp["use_ssl"] is True
-    # O que não foi sobrescrito continua vindo do global.
-    assert contato.smtp["username"] == "me@leonardocosta.dev"
+def test_senha_vazia_continua_vazia():
+    assert cifrar("") == ""
+    assert decifrar("") == ""
 
 
-@DOMINIOS
-def test_remetente_usa_formataddr_com_acento(ambiente_de_aliases):
-    ambiente_de_aliases(**{**BASE, "ALIAS_FINANCEIRO_NAME": "Leonardo Matheus de Abreu Costa"})
-    alias = alias_por_slug("financeiro")
-    assert alias.remetente == (
-        "Leonardo Matheus de Abreu Costa <financeiro@leonardocosta.dev>"
-    )
+def test_secret_key_trocado_torna_a_senha_ilegivel():
+    """O aviso do README em forma de teste: trocar o SECRET_KEY exige
+    redigitar as senhas das contas."""
+    cifrada = cifrar("minha-senha")
+    with override_settings(SECRET_KEY="outra-chave-completamente-diferente"):
+        with pytest.raises(SenhaIlegivel):
+            decifrar(cifrada)
 
 
-@DOMINIOS
-def test_alias_sem_nome_usa_so_o_endereco(ambiente_de_aliases):
-    ambiente_de_aliases(**BASE)
-    assert alias_por_slug("contato").remetente == "contato@leonardocosta.dev"
+def test_conta_guarda_a_senha_cifrada(conta_de_teste):
+    conta = ContaEmail.objects.get(pk=conta_de_teste.pk)
+    assert conta.senha == "segredo-de-teste"
+    assert "segredo-de-teste" not in conta.senha_cifrada
 
 
-@DOMINIOS
-def test_dominio_de_fora_e_recusado(ambiente_de_aliases):
-    ambiente_de_aliases(**{**BASE, "ALIAS_CONTATO_ADDRESS": "eu@gmail.com"})
-    aliases, erros = montar_aliases()
-    assert [a.slug for a in aliases] == ["financeiro"]
-    assert any("DMARC" in e for e in erros)
+# --- consultas --------------------------------------------------------
 
 
-@DOMINIOS
-def test_endereco_malformado_e_recusado(ambiente_de_aliases):
-    ambiente_de_aliases(**{**BASE, "ALIAS_CONTATO_ADDRESS": "isto-nao-e-email"})
-    _, erros = montar_aliases()
-    assert any("não é um e-mail válido" in e for e in erros)
+def test_carregar_aliases_respeita_ordem_e_ativo(criar_alias):
+    criar_alias("segundo", ordem=2)
+    criar_alias("primeiro", ordem=1)
+    criar_alias("desligado", ordem=0, ativo=False)
+    assert [a.slug for a in carregar_aliases()] == ["primeiro", "segundo"]
 
 
-@DOMINIOS
-def test_endereco_ausente_e_recusado(ambiente_de_aliases):
-    ambiente = dict(BASE)
-    del ambiente["ALIAS_CONTATO_ADDRESS"]
-    ambiente_de_aliases(**ambiente)
-    _, erros = montar_aliases()
-    assert any("falta ALIAS_CONTATO_ADDRESS" in e for e in erros)
+def test_alias_por_slug(alias_de_teste):
+    assert alias_por_slug("financeiro").pk == alias_de_teste.pk
 
 
-@DOMINIOS
-def test_slug_duplicado_e_recusado(ambiente_de_aliases):
-    ambiente_de_aliases(**{**BASE, "ALIASES": "financeiro,financeiro"})
-    aliases, erros = montar_aliases()
-    assert len(aliases) == 1
-    assert any("duas vezes" in e for e in erros)
-
-
-@DOMINIOS
-def test_lista_vazia_e_recusada(ambiente_de_aliases):
-    ambiente_de_aliases(ALIASES="")
-    _, erros = montar_aliases()
-    assert erros == ["ALIASES está vazia: nenhum alias configurado."]
-
-
-@DOMINIOS
-def test_reply_to_invalido_e_recusado_mas_o_alias_sobrevive(ambiente_de_aliases):
-    ambiente_de_aliases(**{**BASE, "ALIAS_FINANCEIRO_REPLY_TO": "quebrado@"})
-    aliases, erros = montar_aliases()
-    assert any("REPLY_TO" in e for e in erros)
-    assert aliases[0].reply_to == ""
-
-
-@DOMINIOS
-def test_carregar_aliases_levanta_quando_ha_erro(ambiente_de_aliases):
-    ambiente_de_aliases(**{**BASE, "ALIAS_CONTATO_ADDRESS": "eu@gmail.com"})
-    with pytest.raises(ImproperlyConfigured):
-        carregar_aliases()
-
-
-@DOMINIOS
-def test_alias_por_slug_desconhecido(ambiente_de_aliases):
-    ambiente_de_aliases(**BASE)
+def test_alias_por_slug_desconhecido(alias_de_teste):
     with pytest.raises(KeyError):
-        alias_por_slug("inexistente")
+        alias_por_slug("nao-existe")
+
+
+def test_alias_inativo_nao_e_encontrado(criar_alias):
+    criar_alias("oculto", ativo=False)
+    with pytest.raises(KeyError):
+        alias_por_slug("oculto")
+
+
+# --- a interface que o resto do app consome ---------------------------
+
+
+def test_remetente_usa_formataddr(alias_de_teste):
+    assert alias_de_teste.remetente == "Leonardo Costa <financeiro@leonardocosta.dev>"
+
+
+def test_remetente_sem_nome_e_so_o_endereco(criar_alias):
+    assert criar_alias("contato").remetente == "contato@leonardocosta.dev"
+
+
+def test_envelope_e_o_proprio_alias(alias_de_teste):
+    assert alias_de_teste.envelope == "financeiro@leonardocosta.dev"
+
+
+def test_envelope_fixo_da_conta_vence(conta_de_teste, criar_alias):
+    conta_de_teste.envelope_from = "bounces@leonardocosta.dev"
+    conta_de_teste.save()
+    alias = criar_alias("x")
+    assert alias.envelope == "bounces@leonardocosta.dev"
+
+
+def test_smtp_monta_os_kwargs_da_conexao(alias_de_teste):
+    smtp = alias_de_teste.smtp
+    assert smtp["host"] == "smtp.exemplo.test"
+    assert smtp["port"] == 587
+    assert smtp["username"] == "me@leonardocosta.dev"
+    assert smtp["password"] == "segredo-de-teste"
+    assert smtp["use_tls"] is True
+    assert smtp["timeout"] == 20
+
+
+def test_dominio_do_message_id_e_o_do_alias(alias_de_teste):
+    assert alias_de_teste.dominio_message_id == "leonardocosta.dev"
+
+
+# --- validação --------------------------------------------------------
+
+
+def test_alias_fora_do_dominio_da_conta_e_recusado(conta_de_teste):
+    alias = Alias(conta=conta_de_teste, slug="fora", endereco="eu@gmail.com")
+    with pytest.raises(ValidationError, match="DMARC"):
+        alias.full_clean()
+
+
+def test_dominios_derivam_da_conta_quando_nao_declarados(conta_de_teste):
+    conta_de_teste.dominios_permitidos = ""
+    conta_de_teste.save()
+    assert conta_de_teste.dominios == ["leonardocosta.dev"]
+
+
+def test_conta_com_varios_dominios(conta_de_teste, criar_alias):
+    conta_de_teste.dominios_permitidos = "leonardocosta.dev, altaris.love"
+    conta_de_teste.save()
+    alias = Alias(conta=conta_de_teste, slug="outro", endereco="no-reply@altaris.love")
+    alias.full_clean()  # não levanta
+
+
+def test_tls_e_ssl_juntos_sao_recusados(conta_de_teste):
+    conta_de_teste.usar_ssl = True
+    with pytest.raises(ValidationError, match="mutuamente exclusiv"):
+        conta_de_teste.full_clean()
+
+
+def test_sem_cifra_nenhuma_e_recusado(conta_de_teste):
+    conta_de_teste.usar_tls = False
+    conta_de_teste.usar_ssl = False
+    with pytest.raises(ValidationError, match="STARTTLS"):
+        conta_de_teste.full_clean()
+
+
+# --- diagnóstico ------------------------------------------------------
+
+
+def test_verificar_aliases_sem_nenhum_cadastrado():
+    problemas = verificar_aliases()
+    assert len(problemas) == 1
+    assert "Nenhum alias ativo" in problemas[0]
+
+
+def test_verificar_aliases_tudo_certo(alias_de_teste):
+    assert verificar_aliases() == []
+
+
+def test_verificar_aliases_aponta_conta_sem_senha(conta_de_teste, criar_alias):
+    criar_alias("x")
+    conta_de_teste.senha_cifrada = ""
+    conta_de_teste.save()
+    assert any("sem senha" in p for p in verificar_aliases())
+
+
+def test_verificar_aliases_aponta_conta_inativa(conta_de_teste, criar_alias):
+    criar_alias("x")
+    conta_de_teste.ativa = False
+    conta_de_teste.save()
+    assert any("inativa" in p for p in verificar_aliases())

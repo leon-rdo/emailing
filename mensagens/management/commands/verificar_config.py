@@ -1,70 +1,58 @@
-"""Diagnóstico da configuração de aliases e do servidor de saída.
+"""Mostra as contas e os aliases cadastrados, e aponta o que está quebrado.
 
-Imprime, por alias, tudo que foi resolvido do ambiente — inclusive o nome exato
-da variável procurada para cada campo, para nunca ser preciso lembrar como o
-slug vira nome de variável.
-
-Nenhum valor de credencial é lido nem impresso: para os campos sensíveis o
-comando reporta apenas `configurado` ou `faltando`.
+Não inspeciona senhas: para os campos sensíveis reporta apenas se estão
+configurados e se abrem com o `SECRET_KEY` atual.
 """
 
-import os
-
-from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from mensagens.aliases import montar_aliases, nome_variavel
+from mensagens.aliases import carregar_aliases, verificar_aliases
 from mensagens.assinaturas import origem_da_assinatura
-
-
-def _presenca(valor) -> str:
-    return "configurado" if valor else "faltando"
+from mensagens.models import ContaEmail
 
 
 class Command(BaseCommand):
-    help = "Valida os aliases e mostra o que foi resolvido do ambiente."
-
-    # Os system checks reprovam justamente quando a configuração está quebrada;
-    # este comando precisa rodar nessa hora para dizer o porquê.
-    requires_system_checks = []
-    requires_migrations_checks = False
+    help = "Lista contas e aliases cadastrados e valida a configuração."
 
     def handle(self, *args, **options):
-        aliases, erros = montar_aliases()
-        padrao = settings.SMTP_PADRAO
+        contas = ContaEmail.objects.all()
+        if not contas:
+            self.stdout.write(
+                "Nenhuma conta cadastrada. Cadastre uma em /admin/mensagens/contaemail/ "
+                "ou rode `manage.py importar_aliases_do_env`."
+            )
 
-        print(self.style.MIGRATE_HEADING("Servidor de saída (global)"))
-        print(f"  host .......... {padrao['host']}:{padrao['port']}")
-        print(f"  conta ......... {padrao['username'] or '(vazia)'}   [SMTP_USER]")
-        print(f"  credencial .... {_presenca(padrao['password'])}   [SMTP_PASSWORD]")
-        print(f"  tls / ssl ..... use_tls={padrao['use_tls']}  use_ssl={padrao['use_ssl']}")
-        print(f"  timeout ....... {padrao['timeout']}s")
-        print(f"  envelope ...... {settings.SMTP_ENVELOPE_FROM or '(usa o endereço do alias)'}")
-        print(f"  domínios ok ... {', '.join(settings.ALIAS_ALLOWED_DOMAINS) or '(NENHUM!)'}")
-        print(f"  assinaturas ... {settings.SIGNATURES_DIR}")
-        print()
+        for conta in contas:
+            if conta.usar_ssl:
+                cifra = "SSL direto"
+            else:
+                cifra = "STARTTLS" if conta.usar_tls else "NENHUMA"
+            estado = "" if conta.ativa else "  (INATIVA)"
+            print(self.style.MIGRATE_HEADING(f"conta: {conta.nome}{estado}"))
+            print(f"  servidor ...... {conta.host}:{conta.porta} ({cifra})")
+            print(f"  autentica como  {conta.usuario}")
+            print(f"  credencial .... {'configurada' if conta.senha_cifrada else 'FALTANDO'}")
+            print(f"  domínios ok ... {', '.join(conta.dominios) or '(NENHUM!)'}")
+            print(f"  envelope ...... {conta.envelope_from or '(o próprio alias)'}")
+            print(f"  timeout ....... {conta.timeout}s")
+            print()
 
-        for alias in aliases:
-            var = nome_variavel(alias.slug, "SMTP_PASSWORD")
-            propria = bool(os.environ.get(var, "").strip())
+        for alias in carregar_aliases():
             print(self.style.MIGRATE_HEADING(f"[{alias.slug}]"))
             print(f"  From: ......... {alias.remetente}")
             print(f"  envelope ...... {alias.envelope}")
             print(f"  Reply-To ...... {alias.reply_to or '(nenhum)'}")
             print(f"  Message-ID .... @{alias.dominio_message_id}")
-            print(f"  conta ......... {alias.smtp['username']} "
-                  f"em {alias.smtp['host']}:{alias.smtp['port']} "
-                  f"(tls={alias.smtp['use_tls']})")
-            print(f"  credencial .... {'própria' if propria else 'herdada do global'} "
-                  f"— procurei por {var}")
+            print(f"  conta ......... {alias.conta.nome}")
             print(f"  assinatura .... {origem_da_assinatura(alias)}")
-            print(f"  variáveis ..... {nome_variavel(alias.slug, '*')}")
             print()
 
-        if erros:
-            self.stderr.write(self.style.ERROR(f"{len(erros)} problema(s):"))
-            for erro in erros:
-                self.stderr.write(self.style.ERROR(f"  - {erro}"))
+        problemas = verificar_aliases()
+        if problemas:
+            self.stderr.write(self.style.ERROR(f"{len(problemas)} problema(s):"))
+            for problema in problemas:
+                self.stderr.write(self.style.ERROR(f"  - {problema}"))
             raise SystemExit(1)
 
-        self.stdout.write(self.style.SUCCESS(f"{len(aliases)} alias(es) OK."))
+        resumo = f"{contas.count()} conta(s), {len(carregar_aliases())} alias(es) OK."
+        self.stdout.write(self.style.SUCCESS(resumo))

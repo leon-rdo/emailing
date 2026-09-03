@@ -5,25 +5,48 @@ import pytest
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
 
 
-@pytest.fixture(autouse=True)
-def _cache_de_aliases_limpo():
-    """Os testes trocam o ambiente entre os casos; o cache não pode vazar."""
-    from mensagens import aliases
+@pytest.fixture
+def conta_de_teste(db):
+    """Uma conta SMTP fictícia, já com senha cifrada."""
+    from mensagens.models import ContaEmail
 
-    aliases.limpar_cache()
-    yield
-    aliases.limpar_cache()
+    conta = ContaEmail(
+        nome="Conta de teste",
+        host="smtp.exemplo.test",
+        porta=587,
+        usuario="me@leonardocosta.dev",
+        usar_tls=True,
+        dominios_permitidos="leonardocosta.dev",
+    )
+    conta.senha = "segredo-de-teste"
+    conta.save()
+    return conta
 
 
 @pytest.fixture
-def ambiente_de_aliases(monkeypatch):
-    """Substitui todo o bloco ALIAS_*/SMTP_* do ambiente por um cenário limpo."""
+def alias_de_teste(conta_de_teste):
+    """O alias usado pela maior parte dos testes: `financeiro`, com nome."""
+    from mensagens.models import Alias
 
-    def aplicar(**variaveis):
-        for chave in list(os.environ):
-            if chave.startswith(("ALIAS", "SMTP_")):
-                monkeypatch.delenv(chave, raising=False)
-        for chave, valor in variaveis.items():
-            monkeypatch.setenv(chave, valor)
+    return Alias.objects.create(
+        conta=conta_de_teste,
+        slug="financeiro",
+        endereco="financeiro@leonardocosta.dev",
+        nome_exibicao="Leonardo Costa",
+    )
 
-    return aplicar
+
+@pytest.fixture
+def criar_alias(conta_de_teste):
+    """Fábrica para os testes que precisam de mais de um alias."""
+    from mensagens.models import Alias
+
+    def fabricar(slug: str, endereco: str = "", **extra):
+        return Alias.objects.create(
+            conta=extra.pop("conta", conta_de_teste),
+            slug=slug,
+            endereco=endereco or f"{slug}@leonardocosta.dev",
+            **extra,
+        )
+
+    return fabricar

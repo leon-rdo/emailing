@@ -19,20 +19,11 @@ def _tag_painel_previa(html: str) -> str:
     return _TAG_PAINEL_PREVIA.search(html).group(0)
 
 pytestmark = pytest.mark.django_db
-DOMINIOS = override_settings(ALIAS_ALLOWED_DOMAINS=["leonardocosta.dev"])
-BASE = {
-    "SMTP_USER": "me@leonardocosta.dev",
-    "SMTP_PASSWORD": "segredo",
-    "ALIASES": "financeiro",
-    "ALIAS_FINANCEIRO_ADDRESS": "financeiro@leonardocosta.dev",
-    "ALIAS_FINANCEIRO_NAME": "Leonardo Costa",
-}
 SENHA = "uma-senha-bem-comprida-123"
 
 
 @pytest.fixture
-def logado(client, ambiente_de_aliases):
-    ambiente_de_aliases(**BASE)
+def logado(client, alias_de_teste):
     usuario = get_user_model().objects.create_superuser(
         username="leonardo", email="me@leonardocosta.dev", password=SENHA
     )
@@ -41,14 +32,12 @@ def logado(client, ambiente_de_aliases):
     return usuario
 
 
-@DOMINIOS
 def test_tela_de_redacao_carrega(client, logado):
     resposta = client.get(reverse("mensagens:inicio"))
     assert resposta.status_code == 200
     assert b"trix-editor" in resposta.content
 
 
-@DOMINIOS
 def test_sem_previa_botao_enviar_nasce_escondido(client, logado):
     """O botão Enviar e o painel de prévia sempre existem no DOM (para a
     prévia ao vivo poder populá-los sem reload), mas nascem `hidden` até
@@ -61,7 +50,6 @@ def test_sem_previa_botao_enviar_nasce_escondido(client, logado):
     assert "hidden" in _tag_painel_previa(conteudo)
 
 
-@DOMINIOS
 def test_previa_mostra_html_sanitizado_no_iframe(client, logado):
     resposta = client.post(
         reverse("mensagens:inicio"),
@@ -91,7 +79,6 @@ def test_previa_mostra_html_sanitizado_no_iframe(client, logado):
     assert "hidden" not in _tag_botao_enviar(conteudo)
 
 
-@DOMINIOS
 def test_previa_com_formulario_invalido_nao_quebra(client, logado):
     resposta = client.post(
         reverse("mensagens:inicio"),
@@ -101,7 +88,6 @@ def test_previa_com_formulario_invalido_nao_quebra(client, logado):
     assert b"Informe pelo menos um endere" in resposta.content
 
 
-@DOMINIOS
 def test_anexar_lista_e_persiste_entre_previas(client, logado, tmp_path, settings):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -126,7 +112,6 @@ def test_anexar_lista_e_persiste_entre_previas(client, logado, tmp_path, setting
     assert [a.nome for a in segunda.context["anexos"]] == ["nota.pdf"]
 
 
-@DOMINIOS
 def test_remover_anexo_mantem_os_demais(client, logado, tmp_path, settings):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -148,7 +133,6 @@ def test_remover_anexo_mantem_os_demais(client, logado, tmp_path, settings):
     assert [a.nome for a in resposta.context["anexos"]] == ["dois.pdf"]
 
 
-@DOMINIOS
 def test_anexo_com_extensao_bloqueada_mostra_erro(client, logado, tmp_path, settings):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -167,7 +151,6 @@ def test_anexo_com_extensao_bloqueada_mostra_erro(client, logado, tmp_path, sett
     assert resposta.context["previa"] is None
 
 
-@DOMINIOS
 def test_enviar_sem_previa_nao_envia(client, logado):
     """Sem hash_previa (ou vazio), o acao=enviar não bate com hash nenhum."""
     from django.core import mail
@@ -183,7 +166,6 @@ def test_enviar_sem_previa_nao_envia(client, logado):
     assert RegistroEnvio.objects.count() == 0
 
 
-@DOMINIOS
 def test_previa_depois_enviar_envia_de_verdade(client, logado):
     from django.core import mail
 
@@ -211,7 +193,6 @@ def test_previa_depois_enviar_envia_de_verdade(client, logado):
     assert resposta.url == reverse("mensagens:registro", args=[registro.pk])
 
 
-@DOMINIOS
 def test_editar_apos_previa_e_enviar_recusa_e_mostra_nova_previa(client, logado):
     """Hash desatualizado: o envio é recusado e a prévia é refeita, não perdida."""
     from django.core import mail
@@ -236,7 +217,6 @@ def test_editar_apos_previa_e_enviar_recusa_e_mostra_nova_previa(client, logado)
     assert "mudou desde a última prévia" in conteudo
 
 
-@DOMINIOS
 def test_envio_bem_sucedido_redireciona_para_fora_da_url_de_envio(client, logado):
     """A proteção real contra duplicar no F5 é estrutural: depois de enviar, a
     URL na barra de endereço vira a do registro (GET), não mais a do POST de
@@ -256,7 +236,6 @@ def test_envio_bem_sucedido_redireciona_para_fora_da_url_de_envio(client, logado
     assert resposta.url.startswith("/historico/")
 
 
-@DOMINIOS
 def test_previa_ajax_devolve_json_com_html_sanitizado(client, logado):
     resposta = client.post(
         reverse("mensagens:previa_ajax"),
@@ -273,7 +252,6 @@ def test_previa_ajax_devolve_json_com_html_sanitizado(client, logado):
     assert "hash" in corpo and corpo["hash"]
 
 
-@DOMINIOS
 def test_previa_ajax_funciona_antes_de_ter_destinatario(client, logado):
     """Escrever o corpo antes do "Para" é a ordem natural — a prévia ao vivo
     tem que responder já aí, senão fica morta justamente no começo."""
@@ -286,7 +264,6 @@ def test_previa_ajax_funciona_antes_de_ter_destinatario(client, logado):
     assert "escrevendo primeiro" in corpo["html"]
 
 
-@DOMINIOS
 def test_previa_ajax_com_dados_invalidos_devolve_erro_sem_quebrar(client, logado):
     resposta = client.post(
         reverse("mensagens:previa_ajax"),
@@ -298,7 +275,6 @@ def test_previa_ajax_com_dados_invalidos_devolve_erro_sem_quebrar(client, logado
     assert corpo["erros"]
 
 
-@DOMINIOS
 def test_previa_ajax_bate_com_a_previa_do_post_completo(client, logado):
     """As duas rotas usam a mesma função — o hash de uma serve na outra."""
     dados = {"alias": "financeiro", "para": "c@x.com", "assunto": "Oi", "corpo": "<p>oi</p>"}
@@ -310,13 +286,11 @@ def test_previa_ajax_bate_com_a_previa_do_post_completo(client, logado):
     assert via_ajax["html"] == via_post.context["previa"]["html"]
 
 
-@DOMINIOS
 def test_previa_ajax_get_nao_permitido(client, logado):
     resposta = client.get(reverse("mensagens:previa_ajax"))
     assert resposta.status_code == 405
 
 
-@DOMINIOS
 def test_importar_eml_preenche_a_redacao(client, logado):
     from pathlib import Path
 
@@ -342,7 +316,6 @@ def test_importar_eml_preenche_a_redacao(client, logado):
     assert resposta_de_novo.context["form"].initial.get("para") is None
 
 
-@DOMINIOS
 def test_importar_arquivo_ilegivel_mostra_erro(client, logado):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -355,7 +328,6 @@ def test_importar_arquivo_ilegivel_mostra_erro(client, logado):
     assert "reconhecer este arquivo" in conteudo
 
 
-@DOMINIOS
 def test_importar_message_id_manual(client, logado):
     resposta_import = client.post(
         reverse("mensagens:importar"), {"message_id_manual": "abc@exemplo.com"}
@@ -370,13 +342,11 @@ def test_importar_message_id_manual(client, logado):
     assert "para" not in form.initial
 
 
-@DOMINIOS
 def test_importar_sem_arquivo_e_sem_message_id_mostra_erro(client, logado):
     resposta = client.post(reverse("mensagens:importar"), {}, follow=True)
     assert "Envie um arquivo" in resposta.content.decode()
 
 
-@DOMINIOS
 def test_importar_eml_grande_demais_e_recusado(client, logado, settings):
     from django.core.files.uploadedfile import SimpleUploadedFile
 
@@ -391,7 +361,6 @@ def test_importar_eml_grande_demais_e_recusado(client, logado, settings):
     assert "grande demais" in resposta.content.decode()
 
 
-@DOMINIOS
 def test_historico_mostra_link_responder_so_para_enviados(client, logado):
     from mensagens.models import RegistroEnvio
 
@@ -413,7 +382,6 @@ def test_historico_mostra_link_responder_so_para_enviados(client, logado):
     assert conteudo.count("?responder=") == 1
 
 
-@DOMINIOS
 def test_responder_dedup_e_cap_de_referencias(client, logado):
     """O fluxo 'responder a algo que eu enviei' usa a mesma lógica de
     dedup/teto de referencias_para_resposta, não uma concatenação ingênua."""
@@ -431,7 +399,6 @@ def test_responder_dedup_e_cap_de_referencias(client, logado):
     assert referencias == "<a@x> <abc@leonardocosta.dev>"  # sem duplicar
 
 
-@DOMINIOS
 def test_responder_pre_preenche_destinatario_original(client, logado):
     from mensagens.models import RegistroEnvio
 

@@ -25,17 +25,19 @@ Comandos: `uv sync`, `uv run manage.py <cmd>`, `uv run ruff check .`,
 - `config/` — `settings.py` (arquivo único, tudo do ambiente), `urls.py`,
   `middleware.py` (nonce de CSP, cabeçalhos, exigência de OTP), `hashers.py`.
 - `mensagens/` — o app único.
-  - `aliases.py` monta a dataclass congelada `Alias` a partir de `ALIASES` e
-    `ALIAS_<SLUG>_*`. `montar_aliases()` nunca levanta exceção (devolve
-    `(aliases, erros)`) — é o que permite ao `verificar_config` relatar todos os
-    problemas de uma vez; `carregar_aliases()` é a versão em cache que levanta.
-  - `checks.py` transforma esses erros em system checks. É por isso que
-    `verificar_config` declara `requires_system_checks = []`: ele precisa rodar
-    justamente quando a configuração está quebrada.
-  - `assinaturas.py` lê o HTML da assinatura **do disco a cada render**, de
-    propósito: editar o arquivo por ssh reflete na próxima prévia sem restart.
-  - `apps.py:ready()` fixa `DNS_NAME._fqdn`, que conserta de uma vez o domínio
-    do `Message-ID` gerado pelo Django e o nome usado no `EHLO` do SMTP.
+  - `models.py` — `ContaEmail` (caixa que autentica no SMTP), `Alias`
+    (endereço pelo qual se envia, apontando para uma conta) e `RegistroEnvio`
+    (log). O `Alias` expõe `remetente`/`envelope`/`smtp`/`dominio_message_id`
+    com os mesmos nomes de quando os aliases vinham do ambiente — foi assim que
+    a mudança para o banco não se espalhou por `montagem.py`, `envio.py` e as
+    views.
+  - `cripto.py` cifra a senha SMTP com chave derivada do `SECRET_KEY`.
+  - `aliases.py` é a camada fina de consulta ao banco, e `verificar_aliases()`
+    devolve os problemas em texto (nunca levanta) para o `verificar_config`
+    mostrar todos de uma vez.
+  - `assinaturas.py` lê a assinatura do próprio alias (campo do modelo).
+  - `envio.py` fixa `DNS_NAME._fqdn` **por envio**, não no boot: com contas em
+    domínios diferentes, o EHLO e o `Message-ID` corretos dependem do alias.
   - `montagem.py` monta a `EmailMultiAlternatives` (função pura). `envio.py`
     grava o `RegistroEnvio` com `status=ENVIANDO` **antes** da chamada SMTP,
     manda de verdade, e atualiza o status — nunca levanta.
@@ -53,10 +55,16 @@ Comandos: `uv sync`, `uv run manage.py <cmd>`, `uv run ruff check .`,
   `in_reply_to`, porque são nomes de cabeçalho da RFC 5322.
 - **A assinatura não passa pelo sanitizador.** O nh3 limpa o corpo do editor e a
   citação do original; a assinatura é concatenada literal. Ela é conteúdo do
-  operador, num arquivo que só quem tem ssh escreve — sanitizá-la não protege de
-  nada e destrói o layout em `<table>` e os estilos inline. O sanitizador do
-  corpo existe antes de tudo como **normalizador de entregabilidade** (mata
-  `<o:p>`, `mso-*` e sopa de classes vinda do Word); segurança é bônus.
+  operador — sanitizá-la não protege de nada e destruiria o layout em `<table>`
+  com estilo inline.
+- **O CSS é embutido antes de sanitizar** (`saneamento.embutir_css`). Sem isso,
+  um template de e-mail chega sem formatação: o `<style>` e as `class` morrem
+  na limpeza. É por isso que `class` e `<style>` sobrevivem hoje — as media
+  queries preservadas miram as classes. O preço é que `mso-*` colado do Word
+  também passa: feio, inofensivo.
+- **A prévia não exige destinatário** (`FormularioPrevia`). Exigir deixava a
+  prévia ao vivo morta justamente no começo, quando se escreve o corpo antes
+  do "Para". O envio continua exigindo.
 - **A prévia não persiste rascunho.** `montar_email()` é função pura e os dois
   botões (`acao=previa` e `acao=enviar`) chamam a mesma função sobre o mesmo
   POST — WYSIWYG por construção, não por fidelidade de armazenamento. O campo
