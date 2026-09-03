@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from email.charset import QP, Charset
 
 from django.core.mail import EmailMultiAlternatives
 
@@ -25,6 +26,21 @@ from .assinaturas import assinatura_de
 from .marcadores import expandir
 from .models import Alias
 from .saneamento import html_para_texto, limpar_html
+
+# O Django manda UTF-8 como `Content-Transfer-Encoding: 8bit`, ou seja, os
+# bytes crus na rede. Basta um salto do caminho não negociar 8BITMIME (ou
+# tratar o corpo como Latin-1) para o emoji 📧 chegar como "ð§" — foi o que
+# aconteceu num envio real pelo Titan.
+#
+# Quoted-printable resolve na raiz: o corpo trafega só em ASCII e o cliente
+# remonta os bytes no destino. Custa alguns bytes a mais e é o que se espera
+# de e-mail com acento — que aqui é todo e-mail.
+#
+# Passar um objeto Charset (em vez da string "utf-8") é o que faz o Django
+# respeitar esta escolha: o `SafeMIMEText.set_payload` dele só substitui o
+# charset quando recebe a string.
+_UTF8_QUOTED_PRINTABLE = Charset("utf-8")
+_UTF8_QUOTED_PRINTABLE.body_encoding = QP
 
 
 @dataclass
@@ -142,6 +158,7 @@ def montar_email(
         reply_to=[alias.reply_to] if alias.reply_to else None,
         headers=headers,
     )
+    mensagem.encoding = _UTF8_QUOTED_PRINTABLE
     mensagem.attach_alternative(html_final, "text/html")
     for anexo in anexos:
         mensagem.attach(anexo.nome, anexo.conteudo, anexo.tipo)

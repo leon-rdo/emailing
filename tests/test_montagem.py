@@ -21,6 +21,38 @@ def test_from_e_envelope_sao_independentes(alias_de_teste):
     assert mensagem.extra_headers["From"] == "Leonardo Costa <financeiro@leonardocosta.dev>"
 
 
+def test_corpo_vai_em_quoted_printable_e_so_ascii_na_rede(alias_de_teste):
+    """Com `8bit` (o padrão do Django para UTF-8) os bytes crus vão na rede, e
+    basta um salto do caminho não negociar 8BITMIME para o emoji chegar como
+    "ð§" — aconteceu num envio real. Quoted-printable mantém o corpo em ASCII
+    puro no transporte."""
+    dados = DadosRedacao(para=["c@x.com"], corpo_html="<p>emoji 📧 e acento çãé</p>")
+    cru = montar_email(dados, alias_de_teste).message().as_bytes()
+
+    assert b"Content-Transfer-Encoding: quoted-printable" in cru
+    assert b"Content-Transfer-Encoding: 8bit" not in cru
+    assert all(byte < 128 for byte in cru), "corpo saiu com byte fora de ASCII"
+    assert "📧".encode() not in cru
+    assert b"=F0=9F=93=A7" in cru  # o emoji, codificado
+
+
+def test_quoted_printable_volta_ao_original_no_destino(alias_de_teste):
+    from email import policy
+    from email.parser import BytesParser
+
+    dados = DadosRedacao(para=["c@x.com"], corpo_html="<p>emoji 📧 e acento çãé</p>")
+    cru = montar_email(dados, alias_de_teste).message().as_bytes()
+
+    lida = BytesParser(policy=policy.default).parsebytes(cru)
+    partes = {
+        p.get_content_type(): p.get_content()
+        for p in lida.walk()
+        if p.get_content_type() in ("text/plain", "text/html")
+    }
+    assert "📧" in partes["text/html"] and "çãé" in partes["text/html"]
+    assert "📧" in partes["text/plain"] and "çãé" in partes["text/plain"]
+
+
 def test_e_multipart_alternative_com_texto_legivel(alias_de_teste):
     dados = DadosRedacao(
         para=["cliente@example.com"], assunto="Oi", corpo_html="<p><b>Olá</b>, tudo bem?</p>"
