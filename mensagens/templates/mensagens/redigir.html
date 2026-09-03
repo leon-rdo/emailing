@@ -1,0 +1,83 @@
+{% extends "mensagens/base.html" %}
+{% load static %}
+
+{% block titulo %}Redigir — Emailing{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'mensagens/trix.css' %}">
+{% endblock %}
+
+{% block conteudo %}
+<div class="cartao largo">
+	<h1>Redigir</h1>
+
+	<form method="post" novalidate>
+		{% csrf_token %}
+		{% if form.non_field_errors %}
+		<ul class="errorlist">{% for erro in form.non_field_errors %}<li>{{ erro }}</li>{% endfor %}</ul>
+		{% endif %}
+
+		<div class="grade-campos">
+			<p class="campo">
+				<label for="{{ form.alias.id_for_label }}">De</label>
+				{{ form.alias }}
+				{% for erro in form.alias.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+			</p>
+
+			<p class="campo">
+				<label for="{{ form.para.id_for_label }}">Para</label>
+				{{ form.para }}
+				<small>Vários endereços separados por vírgula.</small>
+				{% for erro in form.para.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+			</p>
+
+			<p class="campo">
+				<label for="{{ form.cc.id_for_label }}">Cc</label>
+				{{ form.cc }}
+				{% for erro in form.cc.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+			</p>
+
+			<p class="campo">
+				<label for="{{ form.cco.id_for_label }}">Cco</label>
+				{{ form.cco }}
+				{% for erro in form.cco.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+			</p>
+		</div>
+
+		<p class="campo">
+			<label for="{{ form.assunto.id_for_label }}">Assunto</label>
+			{{ form.assunto }}
+			{% for erro in form.assunto.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+		</p>
+
+		{{ form.in_reply_to }}
+		{{ form.referencias }}
+		{{ form.citacao_html }}
+
+		<p class="campo">
+			<label for="id_corpo">Mensagem</label>
+			{{ form.corpo }}
+			<trix-editor input="id_corpo" class="editor-trix" placeholder="Escreva sua mensagem…"></trix-editor>
+		</p>
+
+		<div class="acoes">
+			<button type="submit" name="acao" value="previa" class="primario">Pré-visualizar</button>
+		</div>
+	</form>
+
+	{% if previa %}
+	<h2>Prévia</h2>
+	<p class="nota">Exatamente o que seria enviado: corpo sanitizado + assinatura do alias.</p>
+	<iframe class="previa-iframe" sandbox="" srcdoc="{{ previa.html }}"></iframe>
+	<details>
+		<summary>Ver parte em texto simples</summary>
+		<pre>{{ previa.texto }}</pre>
+	</details>
+	{% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script nonce="{{ request.csp_nonce }}" src="{% static 'mensagens/trix.umd.js' %}"></script>
+<script nonce="{{ request.csp_nonce }}" src="{% static 'mensagens/editor.js' %}"></script>
+{% endblock %}

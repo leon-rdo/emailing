@@ -223,3 +223,42 @@ details > pre {
 	border-radius: 6px;
 	font-size: .85rem;
 }
+
+/* ---------- redação ---------- */
+
+.grade-campos {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0 1rem;
+}
+
+.grade-campos .campo:first-child { grid-column: 1 / -1; }
+
+.acoes {
+	display: flex;
+	gap: .75rem;
+	margin-top: .5rem;
+}
+
+.editor-trix {
+	min-height: 12rem;
+	border: 1px solid var(--borda);
+	border-radius: 6px;
+	background: var(--cartao);
+}
+
+/* O Trix aceita arquivo por padrão (editor.js recusa no trix-file-accept),
+   mas o botão de anexar continua visível sem isto — escondê-lo evita a
+   confusão de um botão que nunca funciona. */
+.trix-button-group--file-tools { display: none !important; }
+
+.lista-anexos { list-style: none; padding: 0; margin: 0 0 1rem; }
+.lista-anexos li {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: .5rem;
+	padding: .4rem 0;
+	border-bottom: 1px solid var(--borda);
+	font-size: .9rem;
+}

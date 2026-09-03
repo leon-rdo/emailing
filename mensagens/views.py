@@ -8,9 +8,10 @@ from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
 
-from .aliases import carregar_aliases
-from .forms import FormularioLogin
+from .aliases import alias_por_slug, carregar_aliases
+from .forms import FormularioLogin, FormularioRedacao
 from .models import RegistroEnvio
+from .montagem import DadosRedacao, calcular_hash_previa, montar_email
 
 
 @method_decorator(login_not_required, name="dispatch")
@@ -33,9 +34,56 @@ class Sair(LogoutView):
     pass
 
 
-def inicio(request):
-    """Provisório: some quando a tela de redação entrar (Etapa 5)."""
-    return render(request, "mensagens/inicio.html", {"aliases": carregar_aliases()})
+def redigir(request):
+    """Redigir e pré-visualizar. O envio de verdade entra na Etapa 7.
+
+    `acao=previa` é a única ação com efeito nesta etapa: `montar_email()` é
+    função pura, então a prévia mostra exatamente o HTML sanitizado e assinado
+    que sairia — sem depender de rascunho guardado em lugar nenhum (ver
+    `montagem.py` e `CLAUDE.md`).
+    """
+    aliases = carregar_aliases()
+
+    if request.method == "POST":
+        form = FormularioRedacao(request.POST, aliases=aliases)
+    else:
+        inicial = {"alias": aliases[0].slug} if aliases else {}
+        responder_a = request.GET.get("responder")
+        if responder_a:
+            original = get_object_or_404(RegistroEnvio, pk=responder_a)
+            # Respondendo a algo que EU enviei: o destinatário da resposta é
+            # quem recebeu a mensagem original, não o meu próprio remetente.
+            inicial["para"] = original.para
+            inicial["assunto"] = (
+                original.assunto if original.assunto.lower().startswith("re:")
+                else f"Re: {original.assunto}"
+            )
+            inicial["in_reply_to"] = original.message_id
+            inicial["referencias"] = (original.referencias + " " + original.message_id).strip()
+        form = FormularioRedacao(aliases=aliases, initial=inicial)
+
+    previa = None
+    if request.method == "POST" and form.is_valid():
+        alias = alias_por_slug(form.cleaned_data["alias"])
+        dados = DadosRedacao(
+            para=form.cleaned_data["para"],
+            cc=form.cleaned_data["cc"],
+            cco=form.cleaned_data["cco"],
+            assunto=form.cleaned_data["assunto"],
+            corpo_html=form.cleaned_data["corpo"],
+            citacao_html=form.cleaned_data["citacao_html"],
+            in_reply_to=form.cleaned_data["in_reply_to"],
+            referencias=form.cleaned_data["referencias"],
+        )
+        mensagem = montar_email(dados, alias)
+        html_final = mensagem.alternatives[0][0]
+        previa = {
+            "html": html_final,
+            "texto": mensagem.body,
+            "hash": calcular_hash_previa(html_final),
+        }
+
+    return render(request, "mensagens/redigir.html", {"form": form, "previa": previa})
 
 
 def historico(request):
