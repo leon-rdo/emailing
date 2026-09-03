@@ -8,8 +8,30 @@
 {% endblock %}
 
 {% block conteudo %}
+<details class="cartao largo">
+	<summary>Responder a um e-mail existente</summary>
+	<form method="post" action="{% url 'mensagens:importar' %}" enctype="multipart/form-data" class="form-importar">
+		{% csrf_token %}
+		<p class="campo">
+			<label for="id_arquivo_eml">Arquivo .eml ou .txt</label>
+			<input type="file" id="id_arquivo_eml" name="arquivo" accept=".eml,.txt,message/rfc822,text/plain">
+			<small>Extrai automaticamente destinatário, assunto e o texto original, e encadeia a resposta.</small>
+		</p>
+		<p class="nota">— ou, se você só tem o Message-ID à mão —</p>
+		<p class="campo">
+			<label for="id_message_id_manual">Message-ID</label>
+			<input type="text" id="id_message_id_manual" name="message_id_manual" placeholder="&lt;algumacoisa@dominio.com&gt;">
+		</p>
+		<button type="submit" class="botao">Usar para responder</button>
+	</form>
+</details>
+
 <div class="cartao largo">
 	<h1>Redigir</h1>
+
+	{% if form.in_reply_to.value %}
+	<p class="nota">Respondendo à mensagem <code>{{ form.in_reply_to.value }}</code>.</p>
+	{% endif %}
 
 	<form method="post" enctype="multipart/form-data" novalidate>
 		{% csrf_token %}

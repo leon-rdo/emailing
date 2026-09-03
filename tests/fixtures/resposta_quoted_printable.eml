@@ -1,0 +1,35 @@
+From: Suporte Exemplo <suporte@exemplo.com>
+Reply-To: atendimento@exemplo.com
+To: financeiro@leonardocosta.dev
+Subject: Re: =?utf-8?q?D=C3=BAvida_sobre_integra=C3=A7=C3=A3o?=
+Date: Thu, 03 Sep 2026 05:29:26 -0000
+Message-ID: <abc123_ticket9001@exemplo.com>
+References:
+ <primeira-mensagem@leonardocosta.dev> <resposta-automatica@exemplo.com>
+In-Reply-To: <resposta-automatica@exemplo.com>
+MIME-Version: 1.0
+Content-Type: multipart/alternative;
+ boundary="===============6028214951799846892=="
+
+--===============6028214951799846892==
+Content-Type: text/plain; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+
+Ol=C3=A1, tudo bem?
+
+Segue a resposta com acentua=C3=A7=C3=A3o:=C3=A7=C3=A3o, =C3=A3, =C3=A9, =C3=
+=BC.
+
+Atenciosamente,
+Equipe de Suporte
+
+--===============6028214951799846892==
+Content-Type: text/html; charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+MIME-Version: 1.0
+
+<html><body><p>Ol=C3=A1, tudo bem?</p><p>Segue a resposta com acentua=C3=A7=
+=C3=A3o: <b>=C3=A7=C3=A3o, =C3=A3, =C3=A9, =C3=BC</b>.</p><p>Atenciosamente,<=
+br>Equipe de Suporte</p></body></html>
+
+--===============6028214951799846892==--

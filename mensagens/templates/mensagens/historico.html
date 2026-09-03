@@ -16,6 +16,7 @@
 					<th>Para</th>
 					<th>Assunto</th>
 					<th>Status</th>
+					<th></th>
 				</tr>
 			</thead>
 			<tbody>
@@ -26,6 +27,11 @@
 					<td>{{ item.para|truncatechars:50 }}</td>
 					<td>{{ item.assunto|default:"(sem assunto)"|truncatechars:50 }}</td>
 					<td><span class="selo {{ item.selo_css }}">{{ item.get_status_display }}</span></td>
+					<td>
+						{% if item.status == "enviado" %}
+						<a href="{% url 'mensagens:inicio' %}?responder={{ item.pk }}">responder</a>
+						{% endif %}
+					</td>
 				</tr>
 				{% endfor %}
 			</tbody>

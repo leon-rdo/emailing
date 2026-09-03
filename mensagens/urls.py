@@ -6,6 +6,7 @@ app_name = "mensagens"
 
 urlpatterns = [
     path("", views.redigir, name="inicio"),
+    path("importar/", views.importar_eml, name="importar"),
     path("entrar/", views.Entrar.as_view(), name="entrar"),
     path("sair/", views.Sair.as_view(), name="sair"),
     path("historico/", views.historico, name="historico"),

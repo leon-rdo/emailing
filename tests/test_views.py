@@ -230,6 +230,121 @@ def test_envio_bem_sucedido_redireciona_para_fora_da_url_de_envio(client, logado
 
 
 @DOMINIOS
+def test_importar_eml_preenche_a_redacao(client, logado):
+    from pathlib import Path
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    conteudo = (Path(__file__).parent / "fixtures" / "resposta_quoted_printable.eml").read_bytes()
+    resposta_import = client.post(
+        reverse("mensagens:importar"),
+        {"arquivo": SimpleUploadedFile("resposta.eml", conteudo)},
+    )
+    assert resposta_import.status_code == 302
+    assert resposta_import.url == reverse("mensagens:inicio")
+
+    resposta = client.get(reverse("mensagens:inicio"))
+    form = resposta.context["form"]
+    assert form.initial["para"] == "atendimento@exemplo.com"
+    assert form.initial["assunto"] == "Re: Dúvida sobre integração"
+    assert form.initial["in_reply_to"] == "<abc123_ticket9001@exemplo.com>"
+    assert "ção" in form.initial["citacao_html"]
+
+    # Uso único: uma segunda visita não repete o preenchimento.
+    resposta_de_novo = client.get(reverse("mensagens:inicio"))
+    assert resposta_de_novo.context["form"].initial.get("para") is None
+
+
+@DOMINIOS
+def test_importar_arquivo_ilegivel_mostra_erro(client, logado):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    resposta = client.post(
+        reverse("mensagens:importar"),
+        {"arquivo": SimpleUploadedFile("lixo.txt", b"nada parecido com e-mail")},
+        follow=True,
+    )
+    conteudo = resposta.content.decode()
+    assert "reconhecer este arquivo" in conteudo
+
+
+@DOMINIOS
+def test_importar_message_id_manual(client, logado):
+    resposta_import = client.post(
+        reverse("mensagens:importar"), {"message_id_manual": "abc@exemplo.com"}
+    )
+    assert resposta_import.status_code == 302
+
+    resposta = client.get(reverse("mensagens:inicio"))
+    form = resposta.context["form"]
+    assert form.initial["in_reply_to"] == "<abc@exemplo.com>"
+    assert form.initial["referencias"] == "<abc@exemplo.com>"
+    # Sem arquivo, não há destinatário/assunto/citação para inferir.
+    assert "para" not in form.initial
+
+
+@DOMINIOS
+def test_importar_sem_arquivo_e_sem_message_id_mostra_erro(client, logado):
+    resposta = client.post(reverse("mensagens:importar"), {}, follow=True)
+    assert "Envie um arquivo" in resposta.content.decode()
+
+
+@DOMINIOS
+def test_importar_eml_grande_demais_e_recusado(client, logado, settings):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    settings.EML_MAX_BYTES = 100
+    resposta = client.post(
+        reverse("mensagens:importar"),
+        {"arquivo": SimpleUploadedFile("grande.eml", b"x" * 500)},
+        follow=True,
+    )
+    # O corpo do multipart já passa de EML_MAX_BYTES sozinho, então quem
+    # recusa primeiro é a checagem de CONTENT_LENGTH da view externa.
+    assert "grande demais" in resposta.content.decode()
+
+
+@DOMINIOS
+def test_historico_mostra_link_responder_so_para_enviados(client, logado):
+    from mensagens.models import RegistroEnvio
+
+    RegistroEnvio.objects.create(
+        alias="financeiro", remetente="x <financeiro@leonardocosta.dev>",
+        para="a@x.com", assunto="Enviado", message_id="<e@x>",
+        status=RegistroEnvio.Status.ENVIADO,
+    )
+    RegistroEnvio.objects.create(
+        alias="financeiro", remetente="x <financeiro@leonardocosta.dev>",
+        para="a@x.com", assunto="Falhou", message_id="<f@x>",
+        status=RegistroEnvio.Status.FALHOU,
+    )
+    resposta = client.get(reverse("mensagens:historico"))
+    conteudo = resposta.content.decode()
+    # "responder" sozinho aparece 2x por link (no href "?responder=" e no
+    # texto visível) — contar o parâmetro da URL é o que mede quantos links
+    # existem, um por envio bem-sucedido.
+    assert conteudo.count("?responder=") == 1
+
+
+@DOMINIOS
+def test_responder_dedup_e_cap_de_referencias(client, logado):
+    """O fluxo 'responder a algo que eu enviei' usa a mesma lógica de
+    dedup/teto de referencias_para_resposta, não uma concatenação ingênua."""
+    from mensagens.models import RegistroEnvio
+
+    original = RegistroEnvio.objects.create(
+        alias="financeiro", remetente="x <financeiro@leonardocosta.dev>",
+        para="cliente@example.com", assunto="Pedido",
+        message_id="<abc@leonardocosta.dev>",
+        referencias="<a@x> <abc@leonardocosta.dev>",  # já contém o próprio id
+        status=RegistroEnvio.Status.ENVIADO,
+    )
+    resposta = client.get(reverse("mensagens:inicio"), {"responder": original.pk})
+    referencias = resposta.context["form"].initial["referencias"]
+    assert referencias == "<a@x> <abc@leonardocosta.dev>"  # sem duplicar
+
+
+@DOMINIOS
 def test_responder_pre_preenche_destinatario_original(client, logado):
     from mensagens.models import RegistroEnvio
 

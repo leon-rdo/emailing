@@ -5,12 +5,15 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import LoginView, LogoutView
+from django.core.files.uploadhandler import MemoryFileUploadHandler
 from django.core.paginator import Paginator
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.decorators import method_decorator
+from django.views.decorators.csrf import csrf_exempt, csrf_protect
 
 from .aliases import alias_por_slug, carregar_aliases
 from .anexos import ErroAnexo, criar_token, ler_anexos, listar_anexos, remover_anexo, salvar_anexo
+from .eml import ErroImportacaoEML, analisar_eml, normalizar_message_id, referencias_para_resposta
 from .envio import enviar_email
 from .forms import FormularioLogin, FormularioRedacao
 from .models import RegistroEnvio
@@ -81,6 +84,11 @@ def redigir(request):
             anexos_lista = listar_anexos(token)
     else:
         inicial = {"alias": aliases[0].slug} if aliases else {}
+
+        importado = request.session.pop("rascunho_importado", None)
+        if importado:
+            inicial.update({k: v for k, v in importado.items() if v})
+
         responder_a = request.GET.get("responder")
         if responder_a:
             original = get_object_or_404(RegistroEnvio, pk=responder_a)
@@ -92,7 +100,10 @@ def redigir(request):
                 else f"Re: {original.assunto}"
             )
             inicial["in_reply_to"] = original.message_id
-            inicial["referencias"] = (original.referencias + " " + original.message_id).strip()
+            referencias_originais = original.referencias.split() if original.referencias else []
+            inicial["referencias"] = referencias_para_resposta(
+                referencias_originais, original.message_id
+            )
         form = FormularioRedacao(aliases=aliases, initial=inicial)
 
     previa = None
@@ -135,6 +146,69 @@ def redigir(request):
         request, "mensagens/redigir.html",
         {"form": form, "previa": previa, "anexos": anexos_lista},
     )
+
+
+@csrf_exempt
+def importar_eml(request):
+    """Extrai `.eml`/`.txt` para pré-preencher uma resposta, ou aceita um
+    `Message-ID` digitado à mão quando não há arquivo nenhum à mão.
+
+    A troca de upload handler precisa acontecer aqui, na view externa, antes
+    de qualquer leitura de `request.POST` — inclusive a que o próprio
+    `@csrf_protect` da view interna faz para achar o token do CSRF. Depois
+    desse ponto não tem mais como forçar o arquivo a ficar só em memória
+    (mesmo padrão do `gloryrics`, que existe pelo mesmo motivo: a
+    correspondência importada aqui é de terceiros e nunca deveria tocar
+    disco).
+    """
+    request.upload_handlers = [MemoryFileUploadHandler(request)]
+    if request.method == "POST":
+        tamanho = int(request.META.get("CONTENT_LENGTH") or 0)
+        if tamanho > settings.EML_MAX_BYTES:
+            messages.error(request, "Arquivo grande demais para importar.")
+            return redirect("mensagens:inicio")
+    return _importar_eml(request)
+
+
+@csrf_protect
+def _importar_eml(request):
+    if request.method != "POST":
+        return redirect("mensagens:inicio")
+
+    arquivo = request.FILES.get("arquivo")
+    message_id_manual = request.POST.get("message_id_manual", "").strip()
+
+    if arquivo:
+        if arquivo.size > settings.EML_MAX_BYTES:
+            messages.error(request, f"{arquivo.name} passa do limite de importação.")
+            return redirect("mensagens:inicio")
+        try:
+            resultado = analisar_eml(arquivo.read())
+        except ErroImportacaoEML as exc:
+            messages.error(request, str(exc))
+            return redirect("mensagens:inicio")
+
+        for aviso in resultado.avisos:
+            messages.warning(request, aviso)
+        request.session["rascunho_importado"] = {
+            "para": resultado.para,
+            "assunto": resultado.assunto,
+            "in_reply_to": resultado.message_id,
+            "referencias": resultado.referencias,
+            "citacao_html": resultado.citacao_html,
+        }
+        return redirect("mensagens:inicio")
+
+    if message_id_manual:
+        normalizado = normalizar_message_id(message_id_manual)
+        request.session["rascunho_importado"] = {
+            "in_reply_to": normalizado,
+            "referencias": normalizado,
+        }
+        return redirect("mensagens:inicio")
+
+    messages.error(request, "Envie um arquivo .eml/.txt ou informe um Message-ID.")
+    return redirect("mensagens:inicio")
 
 
 def historico(request):

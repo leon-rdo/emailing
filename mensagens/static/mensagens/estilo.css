@@ -252,6 +252,15 @@ details > pre {
    confusão de um botão que nunca funciona. */
 .trix-button-group--file-tools { display: none !important; }
 
+details.cartao summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+
+details.cartao[open] summary { margin-bottom: 1rem; }
+
+.form-importar .campo { margin-bottom: .75rem; }
+
 .lista-anexos { list-style: none; padding: 0; margin: 0 0 1rem; }
 .lista-anexos li {
 	display: flex;
