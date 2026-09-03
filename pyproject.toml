@@ -1,0 +1,47 @@
+[project]
+name = "emailing"
+version = "0.1.0"
+description = "Envio de e-mail por alias do domínio leonardocosta.dev"
+readme = "README.md"
+# 3.12 é o Python do servidor Contabo; 3.14 é o que o uv instala aqui e lá.
+# Nada no projeto exige 3.13+, então o venv do sistema também serve.
+requires-python = ">=3.12"
+dependencies = [
+    "django>=5.2,<6.0",
+    "gunicorn>=23.0",
+    "whitenoise>=6.9",
+    "python-dotenv>=1.0",
+    "nh3>=0.2",
+    "argon2-cffi>=23.1",
+    "django-otp>=1.5",
+    "django-axes>=8.3",
+    "qrcode>=8.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.13",
+    "pytest>=8.3",
+    "pytest-django>=4.11",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["**/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "DJ", "C4", "T20"]
+
+[tool.ruff.lint.per-file-ignores]
+# Em comando de manage.py o print É a saída; logging seria a ferramenta errada.
+"mensagens/management/commands/*" = ["T201"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "mensagens"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py"]
+testpaths = ["tests"]
+addopts = "-ra"

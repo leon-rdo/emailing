@@ -1,0 +1,27 @@
+# Segredos e estado — NUNCA versionar.
+.env
+.env.*
+!.env.example
+
+# Estado em runtime: banco, assinaturas e anexos de rascunho.
+# APAGAR data/ APAGA O HISTÓRICO DE ENVIOS E AS ASSINATURAS.
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Django
+staticfiles/
+*.log
+
+# Correspondência de terceiros usada em teste manual
+*.eml
+!tests/fixtures/*.eml
+
+# Editores
+.vscode/
+.idea/
+*.swp
