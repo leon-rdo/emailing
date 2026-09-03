@@ -4,11 +4,13 @@ from django.conf import settings
 from django.contrib.auth.decorators import login_not_required
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import LoginView, LogoutView
-from django.shortcuts import render
+from django.core.paginator import Paginator
+from django.shortcuts import get_object_or_404, render
 from django.utils.decorators import method_decorator
 
 from .aliases import carregar_aliases
 from .forms import FormularioLogin
+from .models import RegistroEnvio
 
 
 @method_decorator(login_not_required, name="dispatch")
@@ -34,3 +36,14 @@ class Sair(LogoutView):
 def inicio(request):
     """Provisório: some quando a tela de redação entrar (Etapa 5)."""
     return render(request, "mensagens/inicio.html", {"aliases": carregar_aliases()})
+
+
+def historico(request):
+    lista = RegistroEnvio.objects.all()
+    pagina = Paginator(lista, 25).get_page(request.GET.get("pagina"))
+    return render(request, "mensagens/historico.html", {"pagina": pagina})
+
+
+def registro(request, pk):
+    item = get_object_or_404(RegistroEnvio, pk=pk)
+    return render(request, "mensagens/registro.html", {"registro": item})

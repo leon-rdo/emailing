@@ -1,0 +1,46 @@
+{% extends "mensagens/base.html" %}
+
+{% block titulo %}Histórico — Emailing{% endblock %}
+
+{% block conteudo %}
+<div class="cartao largo">
+	<h1>Histórico de envios</h1>
+
+	{% if pagina.object_list %}
+	<div class="tabela-rolavel">
+		<table>
+			<thead>
+				<tr>
+					<th>Data</th>
+					<th>Alias</th>
+					<th>Para</th>
+					<th>Assunto</th>
+					<th>Status</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in pagina %}
+				<tr>
+					<td><a href="{% url 'mensagens:registro' item.pk %}">{{ item.criado_em|date:"d/m/Y H:i" }}</a></td>
+					<td><code>{{ item.alias }}</code></td>
+					<td>{{ item.para|truncatechars:50 }}</td>
+					<td>{{ item.assunto|default:"(sem assunto)"|truncatechars:50 }}</td>
+					<td><span class="selo {{ item.selo_css }}">{{ item.get_status_display }}</span></td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+
+	{% if pagina.has_other_pages %}
+	<nav class="paginacao">
+		{% if pagina.has_previous %}<a href="?pagina={{ pagina.previous_page_number }}">&larr; anterior</a>{% endif %}
+		<span class="nota">página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+		{% if pagina.has_next %}<a href="?pagina={{ pagina.next_page_number }}">próxima &rarr;</a>{% endif %}
+	</nav>
+	{% endif %}
+	{% else %}
+	<p class="nota">Nenhum envio ainda.</p>
+	{% endif %}
+</div>
+{% endblock %}

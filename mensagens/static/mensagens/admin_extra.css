@@ -1,0 +1,22 @@
+/* Retoque mínimo do admin padrão do Django: só a paleta, sem tocar em layout. */
+
+:root {
+	--primary: #4a90e2;
+	--primary-fg: #fff;
+	--header-color: #fff;
+	--link-fg: #2f6fb8;
+	--link-hover-color: #1d4d85;
+}
+
+#header {
+	background: linear-gradient(135deg, #2c3e50, #4a90e2);
+}
+
+div.breadcrumbs {
+	background: #f4f5f7;
+	color: #4a5568;
+}
+
+.module h2, .module caption, .inline-group h2 {
+	background: #2c3e50;
+}

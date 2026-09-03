@@ -192,3 +192,34 @@ th { color: var(--tinta-fraca); font-weight: 500; }
 .selo.enviado { background: var(--ok-fundo); color: var(--ok); }
 .selo.falhou { background: var(--erro-fundo); color: var(--erro); }
 .selo.enviando { background: var(--realce); color: var(--tinta-fraca); }
+
+/* ---------- histórico / prévia ---------- */
+
+.tabela-rolavel { overflow-x: auto; }
+
+.paginacao {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 1rem;
+	margin-top: 1rem;
+}
+
+.paginacao a { text-decoration: none; color: var(--marca); }
+
+.previa-iframe {
+	width: 100%;
+	height: 26rem;
+	border: 1px solid var(--borda);
+	border-radius: 6px;
+	background: #fff;
+}
+
+details > pre {
+	white-space: pre-wrap;
+	word-break: break-word;
+	background: var(--realce);
+	padding: .75rem;
+	border-radius: 6px;
+	font-size: .85rem;
+}

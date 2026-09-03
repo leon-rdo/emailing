@@ -16,6 +16,8 @@
 			<a class="marca" href="{% url 'mensagens:inicio' %}">✉️ Emailing</a>
 			<nav>
 				<a href="{% url 'mensagens:inicio' %}">Redigir</a>
+				<a href="{% url 'mensagens:historico' %}">Histórico</a>
+				<a href="/admin/">Admin</a>
 				<form method="post" action="{% url 'mensagens:sair' %}" class="embutido">
 					{% csrf_token %}
 					<button type="submit" class="link">Sair</button>
