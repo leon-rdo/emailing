@@ -264,6 +264,52 @@ def test_previa_ajax_funciona_antes_de_ter_destinatario(client, logado):
     assert "escrevendo primeiro" in corpo["html"]
 
 
+@pytest.mark.parametrize(
+    "parcial",
+    ["", "c", "cliente@", "cliente@exe", "cliente@exemplo.com", "a@x.com, parcial@"],
+)
+def test_previa_ajax_sobrevive_a_endereco_sendo_digitado(client, logado, parcial):
+    """Todo e-mail passa por estados inválidos enquanto é digitado
+    ("cliente@exe"). Se isso invalidar a prévia, ela congela no meio de cada
+    digitação e parece que só o botão funciona — foi o defeito relatado."""
+    resposta = client.post(
+        reverse("mensagens:previa_ajax"),
+        {"alias": "financeiro", "para": parcial, "corpo": "<p>corpo estável</p>"},
+    )
+    corpo = resposta.json()
+    assert corpo["ok"] is True, f"prévia quebrou com para={parcial!r}"
+    assert "corpo estável" in corpo["html"]
+
+
+def test_previa_traz_moldura_com_fonte_sem_serifa(client, logado):
+    """O iframe não herda estilo: sem moldura, HTML sem font-family cairia na
+    fonte serifada do navegador, que nenhum cliente de e-mail usa."""
+    resposta = client.post(
+        reverse("mensagens:previa_ajax"),
+        {"alias": "financeiro", "para": "c@x.com", "corpo": "<p>oi</p>"},
+    )
+    html = resposta.json()["html"]
+    assert "sans-serif" in html
+    assert "<p>oi</p>" in html
+
+
+def test_moldura_nao_entra_no_que_e_enviado(client, logado):
+    """A moldura é só da tela — o que sai no e-mail não pode levá-la junto."""
+    from django.core import mail
+
+    dados = {"alias": "financeiro", "para": "c@x.com", "corpo": "<p>oi</p>"}
+    previa = client.post(reverse("mensagens:inicio"), {**dados, "acao": "previa"})
+    client.post(
+        reverse("mensagens:inicio"),
+        {**dados, "acao": "enviar", "hash_previa": previa.context["previa"]["hash"]},
+    )
+
+    enviado = mail.outbox[0].alternatives[0][0]
+    assert "<p>oi</p>" in enviado
+    assert "<!DOCTYPE html>" not in enviado
+    assert "Arial,Helvetica" not in enviado
+
+
 def test_previa_ajax_com_dados_invalidos_devolve_erro_sem_quebrar(client, logado):
     resposta = client.post(
         reverse("mensagens:previa_ajax"),
@@ -283,7 +329,8 @@ def test_previa_ajax_bate_com_a_previa_do_post_completo(client, logado):
     via_post = client.post(reverse("mensagens:inicio"), {**dados, "acao": "previa"})
 
     assert via_ajax["hash"] == via_post.context["previa"]["hash"]
-    assert via_ajax["html"] == via_post.context["previa"]["html"]
+    # As duas rotas mandam para o iframe a versão emoldurada, idêntica.
+    assert via_ajax["html"] == via_post.context["previa"]["html_previa"]
 
 
 def test_previa_ajax_get_nao_permitido(client, logado):

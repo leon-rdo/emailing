@@ -52,27 +52,39 @@ def dividir_enderecos(bruto: str) -> list[str]:
 
 
 class ListaEnderecosField(forms.CharField):
-    """Campo de texto único que vira lista de endereços validados."""
+    """Campo de texto único que vira lista de endereços validados.
 
-    def __init__(self, *, minimo_um=False, **kwargs):
+    Em modo `tolerante`, endereço inválido é descartado em silêncio em vez de
+    invalidar o formulário — é o que a prévia ao vivo precisa: quem digita um
+    e-mail passa por "cliente@exe" antes de chegar em "cliente@exemplo.com", e
+    a prévia não pode congelar no meio do caminho.
+    """
+
+    def __init__(self, *, minimo_um=False, tolerante=False, **kwargs):
         kwargs.setdefault("required", False)
         kwargs.setdefault("widget", forms.TextInput)
         super().__init__(**kwargs)
         self.minimo_um = minimo_um
+        self.tolerante = tolerante
 
     def clean(self, valor):
         bruto = super().clean(valor)
         enderecos = dividir_enderecos(bruto)
-        if self.minimo_um and not enderecos:
-            raise ValidationError("Informe pelo menos um endereço válido.")
         validar = EmailValidator()
+        validos = []
         for item in enderecos:
             _, endereco = parseaddr(item)
             try:
                 validar(endereco)
             except ValidationError:
+                if self.tolerante:
+                    continue
                 raise ValidationError(f"Endereço inválido: {item}") from None
-        return enderecos
+            validos.append(item)
+
+        if self.minimo_um and not validos and not self.tolerante:
+            raise ValidationError("Informe pelo menos um endereço válido.")
+        return validos
 
 
 class EntradaMultiploArquivo(forms.ClearableFileInput):
@@ -130,12 +142,17 @@ class FormularioRedacao(forms.Form):
 class FormularioPrevia(FormularioRedacao):
     """A prévia é do conteúdo, não do envelope.
 
-    Exigir destinatário para pré-visualizar deixava a prévia ao vivo morta
-    justamente no começo — quem escreve um e-mail normalmente escreve o corpo
-    antes de preencher o "Para", e até lá nada aparecia. O envio continua
-    exigindo destinatário: quem valida ali é o `FormularioRedacao`.
+    Nada relacionado a destinatário pode invalidar uma prévia. Exigir "Para"
+    deixava a prévia morta enquanto se escrevia o corpo (a ordem natural); e
+    validar endereço a cada tecla a congelava no meio de cada digitação, já que
+    todo e-mail passa por estados inválidos até terminar de ser escrito. Nos
+    dois casos o sintoma era o mesmo: a prévia parecia só funcionar no botão.
+
+    O envio continua estrito — lá quem valida é o `FormularioRedacao`.
     """
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["para"].minimo_um = False
+        for campo in ("para", "cc", "cco"):
+            self.fields[campo].minimo_um = False
+            self.fields[campo].tolerante = True

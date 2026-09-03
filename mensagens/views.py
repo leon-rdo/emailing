@@ -18,7 +18,12 @@ from .eml import ErroImportacaoEML, analisar_eml, normalizar_message_id, referen
 from .envio import enviar_email
 from .forms import FormularioLogin, FormularioPrevia, FormularioRedacao
 from .models import RegistroEnvio
-from .montagem import DadosRedacao, calcular_hash_previa, montar_email
+from .montagem import (
+    DadosRedacao,
+    calcular_hash_previa,
+    emoldurar_para_previa,
+    montar_email,
+)
 
 
 def _dados_do_formulario(form) -> DadosRedacao:
@@ -52,6 +57,9 @@ def _previa_de(form, token: str) -> dict:
         "dados": dados,
         "alias": alias,
         "html": html_final,
+        # O que vai para o iframe leva a moldura; o que é enviado (e o que
+        # entra no hash) é o html_final puro.
+        "html_previa": emoldurar_para_previa(html_final),
         "texto": mensagem.body,
         "hash": calcular_hash_previa(dados, alias, html_final, ids_anexos),
     }
@@ -193,7 +201,7 @@ def previa_ajax(request):
     resultado = _previa_de(form, token)
     return JsonResponse({
         "ok": True,
-        "html": resultado["html"],
+        "html": resultado["html_previa"],
         "texto": resultado["texto"],
         "hash": resultado["hash"],
     })

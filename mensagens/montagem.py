@@ -56,6 +56,24 @@ def montar_corpo(dados: DadosRedacao, alias: Alias) -> tuple[str, str]:
     return html_final, html_para_texto(html_final)
 
 
+def emoldurar_para_previa(html_final: str) -> str:
+    """Envolve o HTML numa moldura que imita o padrão de um cliente de e-mail.
+
+    O iframe da prévia não herda estilo nenhum, então HTML sem `font-family`
+    cai na fonte padrão do navegador — serifada — e a prévia mente sobre o
+    resultado: Gmail, Outlook e afins aplicam uma sans-serif. A moldura só
+    existe na tela; o que é enviado é o `html_final` puro, e é ele que entra
+    no hash.
+    """
+    return (
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><style>'
+        "html,body{margin:0;padding:0;}"
+        "body{padding:16px;background:#fff;color:#222;"
+        "font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;}"
+        "</style></head><body>" + html_final + "</body></html>"
+    )
+
+
 def calcular_hash_previa(dados: DadosRedacao, alias: Alias, html_final: str,
                           ids_anexos: list[str] = ()) -> str:
     """Assinatura de tudo que define o envio — não só o corpo.

@@ -252,6 +252,34 @@ details > pre {
    confusão de um botão que nunca funciona. */
 .trix-button-group--file-tools { display: none !important; }
 
+/* Botão de código inline e seletor de fonte, acrescentados à barra do Trix
+   por editor.js. */
+.botao-codigo-inline {
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: .8rem;
+	font-weight: 700;
+}
+
+.seletor-de-fonte {
+	width: auto;
+	max-width: 9rem;
+	margin-left: .4rem;
+	padding: .15rem .3rem;
+	font-size: .8rem;
+	border: 1px solid var(--borda);
+	border-radius: 4px;
+	background: var(--cartao);
+	vertical-align: middle;
+}
+
+.editor-trix code {
+	background: var(--realce);
+	border-radius: 3px;
+	padding: .1em .3em;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: .9em;
+}
+
 .cabecalho-campo {
 	display: flex;
 	align-items: center;

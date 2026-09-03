@@ -116,7 +116,7 @@
 		<div class="painel-previa" {% if not previa %}hidden{% endif %}>
 			<h2>Prévia <span class="previa-status nota"></span></h2>
 			<p class="nota">O que seria enviado: corpo sanitizado + assinatura do alias. Atualiza sozinha enquanto você digita.</p>
-			<iframe class="previa-iframe" sandbox="" srcdoc="{{ previa.html|default:'' }}"></iframe>
+			<iframe class="previa-iframe" sandbox="" srcdoc="{{ previa.html_previa|default:'' }}"></iframe>
 			<details>
 				<summary>Ver parte em texto simples</summary>
 				<pre class="previa-texto">{{ previa.texto|default:'' }}</pre>
