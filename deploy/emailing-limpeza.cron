@@ -1,0 +1,3 @@
+# Instalar em /etc/cron.d/emailing-limpeza (root:root, modo 644).
+# Apaga rascunhos de anexos abandonados (RASCUNHOS_TTL_DIAS, padrão 7 dias).
+0 4 * * * emailing cd /var/www/emailing && UV_PYTHON_INSTALL_DIR=/opt/uv-python UV_CACHE_DIR=/var/www/emailing/data/.uv-cache HOME=/var/www/emailing /usr/local/bin/uv run --no-dev manage.py limpar_rascunhos >> /var/log/emailing-limpeza.log 2>&1

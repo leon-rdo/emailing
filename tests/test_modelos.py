@@ -93,6 +93,20 @@ def test_historico_exige_login(client):
     assert client.get(reverse("mensagens:historico")).status_code == 302
 
 
+def test_admin_nao_vaza_a_chave_totp(client, logado):
+    """OTP_ADMIN_HIDE_SENSITIVE_DATA: o padrão do django-otp é False, o que
+    mostraria a chave secreta do TOTP em texto puro no admin."""
+    from django_otp.plugins.otp_totp.models import TOTPDevice
+
+    dispositivo = TOTPDevice.objects.create(user=logado, name="teste", confirmed=True)
+    url = reverse("admin:otp_totp_totpdevice_change", args=[dispositivo.pk])
+    resposta = client.get(url)
+    assert resposta.status_code == 200
+    conteudo = resposta.content.decode()
+    assert dispositivo.key not in conteudo
+    assert "qrcode" not in conteudo.lower()
+
+
 def test_admin_e_somente_leitura(client, logado):
     item = _registro(message_id="<ro@x>")
     url = reverse("admin:mensagens_registroenvio_change", args=[item.pk])

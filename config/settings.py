@@ -185,6 +185,10 @@ LOGOUT_REDIRECT_URL = "/entrar/"
 # `0` só em desenvolvimento, para um banco local novo não exigir matrícula de celular.
 OTP_OBRIGATORIO = env_bool("OTP_OBRIGATORIO", True)
 OTP_TOTP_ISSUER = "Emailing leonardocosta.dev"
+# O padrão do django-otp é False — o admin mostraria a chave secreta do TOTP
+# (e o link do QR, que revela a mesma chave) em texto puro no formulário do
+# TOTPDevice. Não é um botão: é o certo, sempre.
+OTP_ADMIN_HIDE_SENSITIVE_DATA = True
 
 SESSION_COOKIE_AGE = env_int("SESSION_COOKIE_AGE", 43_200)  # 12 h
 SESSION_SAVE_EVERY_REQUEST = True
