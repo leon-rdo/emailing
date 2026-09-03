@@ -4,114 +4,101 @@ Orientação para o Claude Code trabalhar neste repositório.
 
 ## O que é
 
-App Django de usuário único para enviar e-mail por alias do domínio
-`leonardocosta.dev`, hospedado em `emailing.leonardocosta.dev`. **Não tem
-relação nenhuma com o Pholium** — só compartilha a VPS.
+App Django de usuário único para enviar e-mail por **alias**, hospedado em
+`emailing.leonardocosta.dev`. O provedor cobra por caixa, não por endereço de
+saída: o app autentica com uma caixa real e põe o alias no `From:`.
+
+**Não tem relação nenhuma com o Pholium** — só compartilha a VPS.
 
 Tudo — código, comentários, mensagens de UI, docs — em **português**.
 
+## Documentação
+
+| Documento | Quando ler |
+|---|---|
+| [docs/arquitetura.md](docs/arquitetura.md) | antes de mexer no caminho de uma mensagem |
+| [docs/decisoes.md](docs/decisoes.md) | **antes de "consertar" qualquer coisa que pareça errada** |
+| [docs/operacao.md](docs/operacao.md) | implantar, diagnosticar, backup |
+| [docs/entregabilidade.md](docs/entregabilidade.md) | DNS, encoding, CSS em cliente de e-mail |
+| [README.md](README.md) | rodar local, configurar, usar |
+
+`docs/decisoes.md` é o mais importante dos quatro: lista o que **parece errado
+até saber por quê**, e várias dessas coisas já foram "consertadas" de volta ao
+estado ruim uma vez.
+
 ## Stack
 
-Django 5.2 renderizado no servidor, **sem DRF** (não existe um segundo cliente;
-a UI são três formulários). SQLite em WAL. uv + `pyproject.toml`. ruff.
-gunicorn + whitenoise atrás do nginx. Sem npm, sem bundler, sem framework de
-CSS: um `estilo.css` escrito à mão e JS inline com nonce de CSP.
+Django 5.2 renderizado no servidor, **sem DRF**. SQLite em WAL. uv +
+`pyproject.toml`. ruff. gunicorn + whitenoise atrás do nginx. Sem npm, sem
+bundler, sem framework de CSS: um `estilo.css` à mão e JS inline com nonce de
+CSP. Trix vendorizado como único JS de terceiros.
 
-Comandos: `uv sync`, `uv run manage.py <cmd>`, `uv run ruff check .`,
-`uv run pytest`.
+```bash
+uv sync
+uv run manage.py <cmd>
+uv run ruff check .
+uv run pytest
+```
 
-## Arquitetura
+## Mapa do código
 
 - `config/` — `settings.py` (arquivo único, tudo do ambiente), `urls.py`,
   `middleware.py` (nonce de CSP, cabeçalhos, exigência de OTP), `hashers.py`.
-- `mensagens/` — o app único.
-  - `models.py` — `ContaEmail` (caixa que autentica no SMTP), `Alias`
-    (endereço pelo qual se envia, apontando para uma conta) e `RegistroEnvio`
-    (log). O `Alias` expõe `remetente`/`envelope`/`smtp`/`dominio_message_id`
-    com os mesmos nomes de quando os aliases vinham do ambiente — foi assim que
-    a mudança para o banco não se espalhou por `montagem.py`, `envio.py` e as
-    views.
-  - `cripto.py` cifra a senha SMTP com chave derivada do `SECRET_KEY`.
-  - `aliases.py` é a camada fina de consulta ao banco, e `verificar_aliases()`
-    devolve os problemas em texto (nunca levanta) para o `verificar_config`
-    mostrar todos de uma vez.
-  - `assinaturas.py` lê a assinatura do próprio alias (campo do modelo).
-  - `envio.py` fixa `DNS_NAME._fqdn` **por envio**, não no boot: com contas em
-    domínios diferentes, o EHLO e o `Message-ID` corretos dependem do alias.
-  - `montagem.py` monta a `EmailMultiAlternatives` (função pura). `envio.py`
-    grava o `RegistroEnvio` com `status=ENVIANDO` **antes** da chamada SMTP,
-    manda de verdade, e atualiza o status — nunca levanta.
-  - `anexos.py` grava/lê/remove arquivos de rascunho em `RASCUNHOS_DIR/<token>`;
-    o token é um campo oculto do formulário, não sessão nem modelo.
-  - `eml.py` faz o parsing de `.eml`/`.txt` e a reconstrução de `References`
-    (`referencias_para_resposta`) — reaproveitada também pelo fluxo "responder a
-    algo que eu enviei" em `views.redigir`, para as duas rotas terem a mesma
-    lógica de dedup/teto de 20 em vez de duas implementações divergentes.
+- `mensagens/` — o app único:
+  - `models.py` — `ContaEmail`, `Alias`, `RegistroEnvio`
+  - `cripto.py` — cifra a senha SMTP
+  - `aliases.py` — consulta ao banco + `verificar_aliases()`
+  - `saneamento.py` — embutir CSS, limpar HTML, HTML→texto
+  - `montagem.py` — monta a mensagem (função pura)
+  - `marcadores.py` — `{{ … }}` e o glossário
+  - `envio.py` — conexão SMTP e o `RegistroEnvio`
+  - `anexos.py` — rascunhos em disco
+  - `eml.py` — importar `.eml` e reconstruir `References`
+  - `views.py` — redigir/prévia/envio, importar, histórico
 
 ## Convenções que não devem ser "corrigidas"
 
+O racional completo está em [docs/decisoes.md](docs/decisoes.md). Em resumo:
+
 - **Nomes de domínio em português, identificadores de protocolo em inglês.**
-  `criado_em`, `remetente`, `assunto`, `erro` — mas `message_id` e
-  `in_reply_to`, porque são nomes de cabeçalho da RFC 5322.
-- **A assinatura não passa pelo sanitizador.** O nh3 limpa o corpo do editor e a
-  citação do original; a assinatura é concatenada literal. Ela é conteúdo do
-  operador — sanitizá-la não protege de nada e destruiria o layout em `<table>`
-  com estilo inline.
-- **O CSS é embutido antes de sanitizar** (`saneamento.embutir_css`). Sem isso,
-  um template de e-mail chega sem formatação: o `<style>` e as `class` morrem
-  na limpeza. É por isso que `class` e `<style>` sobrevivem hoje — as media
-  queries preservadas miram as classes. O preço é que `mso-*` colado do Word
-  também passa: feio, inofensivo.
-- **A prévia não exige destinatário nem valida endereço** (`FormularioPrevia`).
-  Exigir deixava a prévia morta enquanto se escrevia o corpo; validar a cada
-  tecla a congelava no meio de cada digitação, porque todo e-mail passa por
-  estados inválidos ("cliente@exe") até terminar. Nada de destinatário pode
-  derrubar uma prévia — ela é do conteúdo. O envio continua estrito.
-- **O `hash_previa` é do conteúdo AUTORAL, com marcadores intactos.** Sobre o
-  texto expandido, `{{ hora }}` mudaria sozinho entre a prévia e o clique em
-  Enviar e o envio seria recusado. Daí existirem `montar_corpo` (autoral, vai
-  no hash) e `montar_corpo_final` (expandido, vai no e-mail).
-- **A lista de marcadores é fechada** (`marcadores.GLOSSARIO`). O que não está
-  nela fica literal — inclusive sintaxe de outros motores. É a lista fechada
-  que separa conveniência de avaliar código colado no corpo. Marcador novo
-  entra no glossário, e há um teste que falha se o glossário prometer algo que
-  não expande.
-- **A prévia não persiste rascunho.** `montar_email()` é função pura e os dois
-  botões (`acao=previa` e `acao=enviar`) chamam a mesma função sobre o mesmo
-  POST — WYSIWYG por construção, não por fidelidade de armazenamento. O campo
-  `hash_previa` fecha o caso de editar depois de pré-visualizar.
-- **`SMTP_TIMEOUT` não é opcional.** O padrão do Django é `None`, que bloqueia a
-  thread para sempre; com workers `gthread` o `--timeout` do gunicorn não mata
-  thread bloqueada. É esse timeout que torna Celery desnecessário aqui.
-- **`AXES_IPWARE_PROXY_COUNT=1` em produção.** Sem isso o `REMOTE_ADDR` é sempre
-  o nginx, o componente `ip_address` do lockout vira constante e qualquer bot que
-  adivinhe o usuário tranca o dono para fora.
-- **`FormularioLogin._chosen_device`** existe porque o django-otp 1.7 passou a
-  exigir escolha explícita do dispositivo. Com um dispositivo só, o motivo da
-  mudança (estrangular dispositivos não usados) não se aplica.
-- **Duplo envio não tem trava no servidor, de propósito.** POST-redirect-GET
-  tira a URL de envio da barra de endereço assim que termina — um F5 de
-  verdade reemite GET. O que sobra (dois cliques quase simultâneos) é
-  resolvido desabilitando o botão no clique, no navegador (`redigir.html`).
-  Não existe campo nem migração extra para isso — o custo não se paga para
-  essa janela de tempo.
-- **A importação de `.eml` nunca toca o disco.** `views.importar_eml` força
-  `MemoryFileUploadHandler` na view externa (`@csrf_exempt`), antes de
-  qualquer leitura de `request.POST` — inclusive a que o `@csrf_protect` da
-  view interna faz sozinho para achar o token do CSRF. Mesmo padrão do
-  `gloryrics`, pelo mesmo motivo: a correspondência importada é de terceiros.
-  O resultado do parsing vai para `request.session` e é lido uma única vez
-  (`session.pop`) por `views.redigir` — não é um `Rascunho` persistido.
+  `criado_em`, `remetente`, `assunto` — mas `message_id` e `in_reply_to`,
+  porque são nomes de cabeçalho da RFC 5322.
+- **A assinatura não passa pelo sanitizador.** É conteúdo do operador.
+- **O CSS é embutido antes de sanitizar**, e por isso `class`/`<style>`
+  sobrevivem.
+- **A prévia não exige destinatário nem valida endereço.** Já quebrou duas
+  vezes por isso.
+- **O `hash_previa` é do conteúdo autoral**, com os marcadores intactos.
+- **A lista de marcadores é fechada.**
+- **A prévia não persiste rascunho** — recalcula sobre o mesmo POST.
+- **`SMTP_TIMEOUT` não é opcional.**
+- **Corpo em quoted-printable**, não no `8bit` do Django.
+- **A importação de `.eml` nunca toca o disco.**
+- **Duplo envio não tem trava no servidor**, de propósito.
+
+## Ao investigar um bug
+
+Os defeitos que os testes não pegaram foram todos encontrados **no artefato
+real**, não no código:
+
+- `.eml` recebido → encoding, DKIM/DMARC, o que o destinatário viu de fato
+- `/var/log/nginx/emailing_access.log` → o status e **o tamanho** das respostas
+  (200 com 113 bytes é JSON de erro)
+- navegador de verdade → digitação tecla a tecla passa por estados que
+  `fill()` pula
 
 ## Estado
 
-`DATA_DIR` guarda o banco SQLite, as assinaturas e os anexos de rascunho.
-**APAGAR `data/` APAGA O HISTÓRICO DE ENVIOS E AS ASSINATURAS.** Não há backup
-automático — ver a etapa opcional de `backup_sqlite` no plano.
+`DATA_DIR` guarda o banco SQLite (contas, aliases, assinaturas, histórico) e os
+anexos pendentes. **Apagar `data/` apaga tudo isso** — e **não há backup
+automático**, a maior pendência conhecida do projeto (ver
+[docs/operacao.md](docs/operacao.md#estado-e-backup)).
+
+O `SECRET_KEY` abre as senhas SMTP cifradas: perdê-lo exige redigitar todas.
 
 ## Onde roda
 
 VPS Contabo `203.0.113.10` (`ssh leonardo_contabo`), a mesma do Pholium
-(`api.leonardocosta.dev`) e do site Nuxt. nginx no host + certbot, processos sob
-systemd em `127.0.0.1` (Pholium na 8000, Nuxt na 3000, este na 8010).
-**Não há Docker nessa máquina.**
+(`api.leonardocosta.dev`, porta 8000) e do site Nuxt (porta 3000). nginx no
+host + certbot, este app sob systemd em `127.0.0.1:8010`, com usuário de
+sistema próprio. **Não há Docker nessa máquina.**

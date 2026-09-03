@@ -8,16 +8,32 @@ editor, assinatura, pré-visualização, anexos e resposta a threads existentes.
 
 Roda em `https://emailing.leonardocosta.dev`.
 
+Uma conta serve vários aliases, e contas diferentes podem estar em provedores
+diferentes — Titan e Hostinger convivem, cada uma com os seus.
+
+## Documentação
+
+- [docs/arquitetura.md](docs/arquitetura.md) — o caminho de uma mensagem, do
+  editor ao SMTP
+- [docs/decisoes.md](docs/decisoes.md) — o que parece errado até saber por quê,
+  e os bugs que já aconteceram
+- [docs/operacao.md](docs/operacao.md) — implantar, diagnosticar, backup
+- [docs/entregabilidade.md](docs/entregabilidade.md) — DNS, encoding, CSS em
+  cliente de e-mail
+
 ## Desenvolvimento
 
 ```bash
 uv sync
-cp .env.example .env      # preencha SMTP_USER, SMTP_PASSWORD e os aliases
+cp .env.example .env      # SECRET_KEY, ALLOWED_HOSTS — nada de e-mail aqui
 uv run manage.py migrate
-uv run manage.py verificar_config    # confere aliases, servidor e assinaturas
 uv run manage.py createsuperuser
 uv run manage.py runserver
 ```
+
+Contas e aliases são cadastrados no admin (`/admin/`), não no `.env`. Depois,
+`uv run manage.py verificar_config` mostra o que está cadastrado e o que está
+quebrado.
 
 Em desenvolvimento deixe `DEBUG="1"` e `OTP_OBRIGATORIO="0"` — assim o login
 não exige segundo fator num banco recém-criado.
