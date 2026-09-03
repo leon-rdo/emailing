@@ -16,7 +16,7 @@ from .aliases import alias_por_slug, carregar_aliases
 from .anexos import ErroAnexo, criar_token, listar_anexos, remover_anexo, salvar_anexo
 from .eml import ErroImportacaoEML, analisar_eml, normalizar_message_id, referencias_para_resposta
 from .envio import enviar_email
-from .forms import FormularioLogin, FormularioRedacao
+from .forms import FormularioLogin, FormularioPrevia, FormularioRedacao
 from .models import RegistroEnvio
 from .montagem import DadosRedacao, calcular_hash_previa, montar_email
 
@@ -179,7 +179,7 @@ def previa_ajax(request):
     if request.method != "POST":
         return JsonResponse({"ok": False, "erros": ["método inválido"]}, status=405)
 
-    form = FormularioRedacao(request.POST, aliases=carregar_aliases())
+    form = FormularioPrevia(request.POST, aliases=carregar_aliases())
     if not form.is_valid():
         erros = list(form.non_field_errors()) + [
             str(erro)

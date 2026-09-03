@@ -274,9 +274,23 @@ def test_previa_ajax_devolve_json_com_html_sanitizado(client, logado):
 
 
 @DOMINIOS
+def test_previa_ajax_funciona_antes_de_ter_destinatario(client, logado):
+    """Escrever o corpo antes do "Para" é a ordem natural — a prévia ao vivo
+    tem que responder já aí, senão fica morta justamente no começo."""
+    resposta = client.post(
+        reverse("mensagens:previa_ajax"),
+        {"alias": "financeiro", "para": "", "corpo": "<p>escrevendo primeiro</p>"},
+    )
+    corpo = resposta.json()
+    assert corpo["ok"] is True
+    assert "escrevendo primeiro" in corpo["html"]
+
+
+@DOMINIOS
 def test_previa_ajax_com_dados_invalidos_devolve_erro_sem_quebrar(client, logado):
     resposta = client.post(
-        reverse("mensagens:previa_ajax"), {"alias": "financeiro", "para": "", "corpo": "oi"}
+        reverse("mensagens:previa_ajax"),
+        {"alias": "alias-que-nao-existe", "para": "c@x.com", "corpo": "oi"},
     )
     assert resposta.status_code == 200
     corpo = resposta.json()

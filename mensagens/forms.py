@@ -125,3 +125,17 @@ class FormularioRedacao(forms.Form):
                 f"{settings.MAX_DESTINATARIOS}. Confira se não colou a lista errada."
             )
         return limpos
+
+
+class FormularioPrevia(FormularioRedacao):
+    """A prévia é do conteúdo, não do envelope.
+
+    Exigir destinatário para pré-visualizar deixava a prévia ao vivo morta
+    justamente no começo — quem escreve um e-mail normalmente escreve o corpo
+    antes de preencher o "Para", e até lá nada aparecia. O envio continua
+    exigindo destinatário: quem valida ali é o `FormularioRedacao`.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["para"].minimo_um = False

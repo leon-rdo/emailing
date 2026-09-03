@@ -1,9 +1,26 @@
-"""Normalização e limpeza do HTML digitado no editor.
+"""Preparo do HTML para envio: CSS embutido nos elementos, depois limpeza.
 
-Isto existe antes de tudo como normalizador de entregabilidade: mata o
-`<o:p>`, `mso-*`, `<meta>` e a sopa de classes que chega quando se cola do Word
-ou de uma página, e que quebra a renderização no Outlook e no Gmail.
-Segurança é bônus.
+Duas etapas, nesta ordem, e a ordem importa:
+
+1. **Embutir o CSS** (`css-inline`). Um template de e-mail de verdade vem com
+   as regras num `<style>` e classes nos elementos — e é assim que ele quebra
+   no Outlook, que ignora boa parte do CSS de folha. Toda ferramenta séria de
+   e-mail transforma essas regras em `style="…"` em cada elemento antes de
+   mandar; é o denominador comum que todo cliente entende. O `<style>`
+   original é mantido, porque `@media` (o responsivo) não tem como virar
+   inline.
+
+2. **Limpar** (`nh3`). Mata `<script>`, `<iframe>`, `<form>`, manipuladores
+   `on*` e tags fora da lista (o `<o:p>` do Word entre elas).
+
+   O que **não** é mais removido, desde que o passo 1 existe: `class` e o
+   `<style>`, porque as media queries preservadas miram as classes — tirar uma
+   sem a outra quebraria o responsivo. Propriedades CSS individuais também
+   passam (o nh3 é tudo-ou-nada por tag no `style`), então `mso-*` colado do
+   Word sobrevive: feio, inofensivo, e o preço de aceitar template de verdade.
+
+Sem a etapa 1, a etapa 2 apagava o `<style>` e as `class` e o e-mail chegava
+sem formatação nenhuma — que é exatamente o que acontecia antes disto existir.
 
 A assinatura de cada alias **não passa por aqui** — ver `montagem.py`.
 """
@@ -13,6 +30,7 @@ from __future__ import annotations
 import html
 import re
 
+import css_inline
 import nh3
 
 _TAGS = {
@@ -20,6 +38,8 @@ _TAGS = {
     "ul", "ol", "li", "blockquote", "pre", "code",
     "h1", "h2", "h3", "h4", "h5", "h6", "hr",
     "table", "thead", "tbody", "tfoot", "tr", "th", "td", "img",
+    # <style> sobrevive por causa das media queries; ver o cabeçalho do módulo.
+    "style", "center", "font",
 }
 
 # nh3 não filtra propriedades CSS: "style" é tudo-ou-nada por tag (ver
@@ -31,24 +51,51 @@ _TAGS = {
 # atributo sozinho).
 _ATRIBUTOS = {
     "a": {"href", "title", "target"},
-    "img": {"src", "alt", "width", "height"},
-    "td": {"colspan", "rowspan", "align", "valign", "width"},
-    "th": {"colspan", "rowspan", "align", "valign", "width"},
-    "table": {"width", "cellpadding", "cellspacing", "border", "role", "align"},
-    "*": {"style"},
+    "img": {"src", "alt", "width", "height", "border"},
+    "td": {"colspan", "rowspan", "align", "valign", "width", "height", "bgcolor"},
+    "th": {"colspan", "rowspan", "align", "valign", "width", "height", "bgcolor"},
+    "tr": {"align", "valign", "bgcolor"},
+    "table": {
+        "width", "height", "cellpadding", "cellspacing", "border", "role", "align", "bgcolor",
+    },
+    "font": {"color", "face", "size"},
+    # `class` fica junto do `style` porque as media queries preservadas no
+    # <style> continuam mirando as classes — tirar uma sem a outra quebraria
+    # o responsivo.
+    "*": {"style", "class", "id", "dir", "lang"},
 }
 
 _ESQUEMAS_URL = {"http", "https", "mailto", "tel", "cid"}
 
+# O nh3 traz `style` na lista de tags removidas junto com o conteúdo. Para
+# manter o `<style>`, ele precisa sair daqui — e o nh3 recusa (com panic) se a
+# mesma tag aparecer nas duas listas.
+_TAGS_REMOVIDAS_COM_CONTEUDO = {"script", "iframe", "object", "embed", "form", "noscript"}
+
+
+def embutir_css(bruto: str) -> str:
+    """Transforma as regras do `<style>` em `style="…"` em cada elemento.
+
+    Nunca deixa a preparação do e-mail falhar por causa de um CSS malformado:
+    se o inliner reclamar, segue com o HTML como veio (o `<style>` ainda é
+    preservado pela limpeza adiante, então clientes que leem folha de estilo
+    continuam funcionando).
+    """
+    try:
+        return css_inline.inline(bruto, keep_style_tags=True)
+    except Exception:
+        return bruto
+
 
 def limpar_html(bruto: str) -> str:
-    """HTML do editor → HTML normalizado e seguro para envio."""
+    """HTML do editor (ou colado) → HTML pronto para enviar."""
     if not bruto or not bruto.strip():
         return ""
     return nh3.clean(
-        bruto,
+        embutir_css(bruto),
         tags=_TAGS,
         attributes=_ATRIBUTOS,
+        clean_content_tags=_TAGS_REMOVIDAS_COM_CONTEUDO,
         url_schemes=_ESQUEMAS_URL,
         link_rel="noopener noreferrer",
         strip_comments=True,
@@ -60,6 +107,10 @@ def limpar_html(bruto: str) -> str:
 # ~30 linhas de stdlib. Não precisa ser bonito, precisa ser legível: e-mail
 # só-HTML tem penalidade mensurável em filtro de spam.
 
+# O <style> sobrevive à limpeza (media queries), mas aqui o conteúdo dele é
+# código, não texto — sem isto as regras CSS apareceriam cruas na parte em
+# texto simples do e-mail.
+_BLOCO_DE_ESTILO = re.compile(r"<style\b[^>]*>.*?</style>", re.IGNORECASE | re.DOTALL)
 _LINK = re.compile(r'<a\b[^>]*\bhref="([^"]*)"[^>]*>(.*?)</a>', re.IGNORECASE | re.DOTALL)
 _ITEM_LISTA = re.compile(r"<li\b[^>]*>", re.IGNORECASE)
 _QUEBRA_DE_BLOCO = re.compile(
@@ -87,7 +138,8 @@ def html_para_texto(html_bruto: str) -> str:
     if not html_bruto:
         return ""
 
-    texto = _LINK.sub(_substituir_link, html_bruto)
+    texto = _BLOCO_DE_ESTILO.sub("", html_bruto)
+    texto = _LINK.sub(_substituir_link, texto)
     texto = _ITEM_LISTA.sub("\n- ", texto)
     texto = _QUEBRA_DE_BLOCO.sub("\n", texto)
     texto = _QUALQUER_TAG.sub("", texto)
