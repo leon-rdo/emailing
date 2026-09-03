@@ -101,6 +101,31 @@ uv run --no-dev manage.py criar_totp <usuário>   # escaneie o QR
 chown -R emailing:www-data data                  # o banco acabou de mudar de dono
 ```
 
+## Uso
+
+Redigir (`/`) tem três entradas independentes para uma resposta: importar um
+`.eml`/`.txt` (extrai destinatário, assunto e cita o corpo original,
+processado só em memória — nunca toca o disco), digitar um `Message-ID` à mão
+quando não há o arquivo, ou clicar em "responder" numa linha do histórico
+(`/historico/`) de algo que o próprio app já enviou.
+
+O botão Enviar só existe depois de uma prévia, e só envia se nada mudou desde
+então (corpo, anexos, destinatário ou assunto) — editar algo depois de
+pré-visualizar volta para uma prévia atualizada em vez de mandar sem conferir.
+
+Diagnóstico e testes manuais:
+
+```bash
+uv run manage.py testar_smtp financeiro --para voce@leonardocosta.dev
+uv run manage.py limpar_rascunhos          # apaga anexos de rascunhos abandonados
+```
+
+Em produção, `limpar_rascunhos` vale um `cron` — não há limpeza automática:
+
+```cron
+0 4 * * * cd /var/www/emailing && /usr/local/bin/uv run --no-dev manage.py limpar_rascunhos
+```
+
 ## Estado
 
 `DATA_DIR` (`data/` em dev, `/var/www/emailing/data` em produção) guarda o

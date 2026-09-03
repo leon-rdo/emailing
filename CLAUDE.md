@@ -36,6 +36,15 @@ Comandos: `uv sync`, `uv run manage.py <cmd>`, `uv run ruff check .`,
     propósito: editar o arquivo por ssh reflete na próxima prévia sem restart.
   - `apps.py:ready()` fixa `DNS_NAME._fqdn`, que conserta de uma vez o domínio
     do `Message-ID` gerado pelo Django e o nome usado no `EHLO` do SMTP.
+  - `montagem.py` monta a `EmailMultiAlternatives` (função pura). `envio.py`
+    grava o `RegistroEnvio` com `status=ENVIANDO` **antes** da chamada SMTP,
+    manda de verdade, e atualiza o status — nunca levanta.
+  - `anexos.py` grava/lê/remove arquivos de rascunho em `RASCUNHOS_DIR/<token>`;
+    o token é um campo oculto do formulário, não sessão nem modelo.
+  - `eml.py` faz o parsing de `.eml`/`.txt` e a reconstrução de `References`
+    (`referencias_para_resposta`) — reaproveitada também pelo fluxo "responder a
+    algo que eu enviei" em `views.redigir`, para as duas rotas terem a mesma
+    lógica de dedup/teto de 20 em vez de duas implementações divergentes.
 
 ## Convenções que não devem ser "corrigidas"
 
@@ -61,6 +70,19 @@ Comandos: `uv sync`, `uv run manage.py <cmd>`, `uv run ruff check .`,
 - **`FormularioLogin._chosen_device`** existe porque o django-otp 1.7 passou a
   exigir escolha explícita do dispositivo. Com um dispositivo só, o motivo da
   mudança (estrangular dispositivos não usados) não se aplica.
+- **Duplo envio não tem trava no servidor, de propósito.** POST-redirect-GET
+  tira a URL de envio da barra de endereço assim que termina — um F5 de
+  verdade reemite GET. O que sobra (dois cliques quase simultâneos) é
+  resolvido desabilitando o botão no clique, no navegador (`redigir.html`).
+  Não existe campo nem migração extra para isso — o custo não se paga para
+  essa janela de tempo.
+- **A importação de `.eml` nunca toca o disco.** `views.importar_eml` força
+  `MemoryFileUploadHandler` na view externa (`@csrf_exempt`), antes de
+  qualquer leitura de `request.POST` — inclusive a que o `@csrf_protect` da
+  view interna faz sozinho para achar o token do CSRF. Mesmo padrão do
+  `gloryrics`, pelo mesmo motivo: a correspondência importada é de terceiros.
+  O resultado do parsing vai para `request.session` e é lido uma única vez
+  (`session.pop`) por `views.redigir` — não é um `Rascunho` persistido.
 
 ## Estado
 
