@@ -1,0 +1,40 @@
+# Instalar em /etc/systemd/system/emailing.service
+#
+# Ao contrário de pholium.service e leonardo-pholium.service, que rodam como
+# root, este serviço tem usuário de sistema próprio: o processo guarda a
+# credencial do SMTP e pode enviar e-mail com DMARC alinhado pelo domínio.
+
+[Unit]
+Description=Emailing — envio de e-mail por alias (gunicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=emailing
+Group=www-data
+WorkingDirectory=/var/www/emailing
+EnvironmentFile=/var/www/emailing/.env
+ExecStart=/var/www/emailing/.venv/bin/gunicorn config.wsgi \
+    --bind 127.0.0.1:8010 \
+    --workers 2 --threads 4 \
+    --timeout 60 --graceful-timeout 20 \
+    --access-logfile - --error-logfile -
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=emailing
+
+# Só o diretório de estado é gravável: banco, assinaturas e anexos pendentes.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/var/www/emailing/data
+
+[Install]
+WantedBy=multi-user.target
