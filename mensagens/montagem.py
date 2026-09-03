@@ -1,11 +1,17 @@
 """Monta o e-mail a partir dos dados do formulário.
 
 `montar_email` é uma função pura: dados os mesmos `dados` e o mesmo `alias`,
-sempre produz a mesma mensagem (module `message_id` à parte, que quem chama
-passa explicitamente só quando quer persistir — ver `envio.py`). É essa pureza
-que permite a prévia e o envio compartilharem o mesmo caminho de código, em vez
-de a prévia depender de um rascunho guardado em algum lugar que pode divergir
-do que de fato sai (ver `views.redigir` e `CLAUDE.md`).
+sempre produz a mesma mensagem (o `message_id` à parte, que quem chama passa
+explicitamente só quando quer persistir — ver `envio.py`). É essa pureza que
+permite a prévia e o envio compartilharem o mesmo caminho de código, em vez de
+a prévia depender de um rascunho guardado em algum lugar que pode divergir do
+que de fato sai (ver `views.redigir` e `CLAUDE.md`).
+
+A exceção são os marcadores (`{{ data }}`, `{{ hora }}`…), que por definição
+mudam com o relógio. Por isso existem dois HTMLs aqui: o **autoral**, com os
+marcadores intactos, e o **final**, com eles expandidos. O `hash_previa` é
+sempre do autoral — se fosse do final, `{{ hora }}` mudaria sozinho entre a
+prévia e o clique em Enviar, e o envio seria recusado por "o conteúdo mudou".
 """
 
 from __future__ import annotations
@@ -16,6 +22,7 @@ from dataclasses import dataclass, field
 from django.core.mail import EmailMultiAlternatives
 
 from .assinaturas import assinatura_de
+from .marcadores import expandir
 from .models import Alias
 from .saneamento import html_para_texto, limpar_html
 
@@ -40,20 +47,33 @@ class DadosRedacao:
 
 
 def montar_corpo(dados: DadosRedacao, alias: Alias) -> tuple[str, str]:
-    """(html_final, texto_final): corpo sanitizado + citação + assinatura."""
+    """(html, texto) **autorais**: sanitizados, com os marcadores intactos.
+
+    É esta versão que entra no `hash_previa` — ver o cabeçalho do módulo.
+    Para o que de fato sai no e-mail, use `montar_corpo_final`.
+    """
     partes = [limpar_html(dados.corpo_html)]
     if dados.citacao_html:
         partes.append(f"<blockquote>{dados.citacao_html}</blockquote>")
 
-    # A assinatura NÃO passa pelo sanitizador: é conteúdo do operador, num
-    # arquivo que só quem tem ssh na máquina escreve. Sanitizá-la não protege
-    # de nada e só pode destruir o layout em <table> e os estilos inline.
+    # A assinatura NÃO passa pelo sanitizador: é conteúdo do operador,
+    # cadastrado por quem administra o app. Sanitizá-la não protege de nada e
+    # só pode destruir o layout em <table> e os estilos inline.
     assinatura = assinatura_de(alias)
     if assinatura:
         partes.append(assinatura)
 
-    html_final = "\n".join(p for p in partes if p)
-    return html_final, html_para_texto(html_final)
+    html_autoral = "\n".join(p for p in partes if p)
+    return html_autoral, html_para_texto(html_autoral)
+
+
+def montar_corpo_final(dados: DadosRedacao, alias: Alias) -> tuple[str, str]:
+    """(html, texto) com os marcadores já trocados pelos valores do momento."""
+    html_autoral, texto_autoral = montar_corpo(dados, alias)
+    return (
+        expandir(html_autoral, alias, dados, escapar_html=True),
+        expandir(texto_autoral, alias, dados, escapar_html=False),
+    )
 
 
 def emoldurar_para_previa(html_final: str) -> str:
@@ -100,7 +120,7 @@ def montar_email(
     anexos: list[Anexo] = (),
     message_id: str = "",
 ) -> EmailMultiAlternatives:
-    html_final, texto_final = montar_corpo(dados, alias)
+    html_final, texto_final = montar_corpo_final(dados, alias)
 
     headers = {"From": alias.remetente}
     if message_id:

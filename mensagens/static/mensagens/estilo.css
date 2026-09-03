@@ -280,6 +280,23 @@ details > pre {
 	font-size: .9em;
 }
 
+.glossario {
+	margin: 0 0 1rem;
+	padding: .75rem 1rem;
+	background: var(--realce);
+	border: 1px solid var(--borda);
+	border-radius: 6px;
+}
+
+.glossario summary {
+	cursor: pointer;
+	font-size: .875rem;
+	font-weight: 500;
+}
+
+.glossario table { margin-top: .5rem; font-size: .85rem; }
+.glossario td, .glossario th { padding: .35rem .5rem; }
+
 .cabecalho-campo {
 	display: flex;
 	align-items: center;

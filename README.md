@@ -124,6 +124,24 @@ O botão Enviar só existe depois de uma prévia, e só envia se nada mudou desd
 então (corpo, anexos, destinatário ou assunto) — editar algo depois de
 pré-visualizar volta para uma prévia atualizada em vez de mandar sem conferir.
 
+### Marcadores
+
+Escreva `{{ data }}` no corpo e ele vira a data no momento do envio. A lista
+completa fica num painel na própria tela de redação (*Marcadores
+disponíveis*), com descrição e exemplo de cada um: `data`, `data_extenso`,
+`hora`, `data_hora`, `ano`, `remetente`, `remetente_nome`, `remetente_email`,
+`destinatario` e `assunto`.
+
+A lista é **fechada de propósito**. Qualquer outro nome fica literal no
+e-mail, e sintaxe de outros motores (`<%= ... %>` do EJS, `{% ... %}` do
+Django) também — o app nunca avalia o que está escrito no corpo, só troca
+nomes que ele mesmo conhece por valores que ele mesmo produz.
+
+Marcadores são expandidos **no envio**, não na hora em que você escreve: a
+prévia mostra o valor já resolvido, mas o que trava o envio (`hash_previa`) é
+o texto com os marcadores intactos. Sem isso, `{{ hora }}` mudaria sozinho
+entre a prévia e o clique em Enviar e o envio seria recusado.
+
 Diagnóstico e testes manuais:
 
 ```bash

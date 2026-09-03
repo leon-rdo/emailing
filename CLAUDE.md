@@ -62,9 +62,20 @@ Comandos: `uv sync`, `uv run manage.py <cmd>`, `uv run ruff check .`,
   na limpeza. É por isso que `class` e `<style>` sobrevivem hoje — as media
   queries preservadas miram as classes. O preço é que `mso-*` colado do Word
   também passa: feio, inofensivo.
-- **A prévia não exige destinatário** (`FormularioPrevia`). Exigir deixava a
-  prévia ao vivo morta justamente no começo, quando se escreve o corpo antes
-  do "Para". O envio continua exigindo.
+- **A prévia não exige destinatário nem valida endereço** (`FormularioPrevia`).
+  Exigir deixava a prévia morta enquanto se escrevia o corpo; validar a cada
+  tecla a congelava no meio de cada digitação, porque todo e-mail passa por
+  estados inválidos ("cliente@exe") até terminar. Nada de destinatário pode
+  derrubar uma prévia — ela é do conteúdo. O envio continua estrito.
+- **O `hash_previa` é do conteúdo AUTORAL, com marcadores intactos.** Sobre o
+  texto expandido, `{{ hora }}` mudaria sozinho entre a prévia e o clique em
+  Enviar e o envio seria recusado. Daí existirem `montar_corpo` (autoral, vai
+  no hash) e `montar_corpo_final` (expandido, vai no e-mail).
+- **A lista de marcadores é fechada** (`marcadores.GLOSSARIO`). O que não está
+  nela fica literal — inclusive sintaxe de outros motores. É a lista fechada
+  que separa conveniência de avaliar código colado no corpo. Marcador novo
+  entra no glossário, e há um teste que falha se o glossário prometer algo que
+  não expande.
 - **A prévia não persiste rascunho.** `montar_email()` é função pura e os dois
   botões (`acao=previa` e `acao=enviar`) chamam a mesma função sobre o mesmo
   POST — WYSIWYG por construção, não por fidelidade de armazenamento. O campo

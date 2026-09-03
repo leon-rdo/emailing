@@ -17,11 +17,13 @@ from .anexos import ErroAnexo, criar_token, listar_anexos, remover_anexo, salvar
 from .eml import ErroImportacaoEML, analisar_eml, normalizar_message_id, referencias_para_resposta
 from .envio import enviar_email
 from .forms import FormularioLogin, FormularioPrevia, FormularioRedacao
+from .marcadores import GLOSSARIO
 from .models import RegistroEnvio
 from .montagem import (
     DadosRedacao,
     calcular_hash_previa,
     emoldurar_para_previa,
+    montar_corpo,
     montar_email,
 )
 
@@ -53,6 +55,10 @@ def _previa_de(form, token: str) -> dict:
     ids_anexos = [a.id for a in listar_anexos(token)]
     mensagem = montar_email(dados, alias)
     html_final = mensagem.alternatives[0][0]
+    # O hash é do conteúdo AUTORAL, com os marcadores ainda intactos: sobre o
+    # expandido, `{{ hora }}` mudaria sozinho entre a prévia e o clique em
+    # Enviar e o envio seria recusado por "o conteúdo mudou".
+    html_autoral, _ = montar_corpo(dados, alias)
     return {
         "dados": dados,
         "alias": alias,
@@ -61,7 +67,7 @@ def _previa_de(form, token: str) -> dict:
         # entra no hash) é o html_final puro.
         "html_previa": emoldurar_para_previa(html_final),
         "texto": mensagem.body,
-        "hash": calcular_hash_previa(dados, alias, html_final, ids_anexos),
+        "hash": calcular_hash_previa(dados, alias, html_autoral, ids_anexos),
     }
 
 
@@ -175,7 +181,12 @@ def redigir(request):
 
     return render(
         request, "mensagens/redigir.html",
-        {"form": form, "previa": previa, "anexos": anexos_lista},
+        {
+            "form": form,
+            "previa": previa,
+            "anexos": anexos_lista,
+            "marcadores": GLOSSARIO,
+        },
     )
 
 

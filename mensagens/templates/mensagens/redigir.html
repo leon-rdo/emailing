@@ -91,6 +91,30 @@
 			<small>O HTML colado aqui passa pela mesma limpeza de segurança do editor normal — scripts e afins são removidos.</small>
 		</div>
 
+		<details class="glossario">
+			<summary>Marcadores disponíveis</summary>
+			<p class="nota">
+				Escreva o marcador no corpo e ele é trocado pelo valor no momento do envio.
+				Qualquer outro nome fica literal — a lista é fechada de propósito.
+			</p>
+			<div class="tabela-rolavel">
+				<table>
+					<thead>
+						<tr><th>Marcador</th><th>O que é</th><th>Exemplo</th></tr>
+					</thead>
+					<tbody>
+						{% for marcador in marcadores %}
+						<tr>
+							<td><code>&#123;&#123; {{ marcador.nome }} &#125;&#125;</code></td>
+							<td>{{ marcador.descricao }}</td>
+							<td class="nota">{{ marcador.exemplo }}</td>
+						</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		</details>
+
 		{% if anexos %}
 		<div class="campo">
 			<label>Anexos</label>
