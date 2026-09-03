@@ -1,0 +1,14 @@
+{% extends "mensagens/base.html" %}
+
+{% block conteudo %}
+<div class="cartao">
+	<h1>Emailing</h1>
+	<p>Aliases configurados:</p>
+	<ul>
+		{% for alias in aliases %}
+		<li><code>{{ alias.slug }}</code> — {{ alias.remetente }}</li>
+		{% endfor %}
+	</ul>
+	<p class="nota">A tela de redação entra na Etapa 5.</p>
+</div>
+{% endblock %}

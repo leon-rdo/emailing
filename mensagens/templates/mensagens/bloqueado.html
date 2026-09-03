@@ -1,0 +1,13 @@
+{% extends "mensagens/base.html" %}
+
+{% block titulo %}Acesso bloqueado — Emailing{% endblock %}
+
+{% block conteudo %}
+<div class="cartao estreito">
+	<h1>Acesso bloqueado</h1>
+	<p>Tentativas de login demais. O acesso deste endereço foi bloqueado
+	temporariamente.</p>
+	<p>Tente de novo mais tarde, ou libere pelo servidor com
+	<code>manage.py axes_reset</code>.</p>
+</div>
+{% endblock %}

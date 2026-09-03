@@ -1,0 +1,194 @@
+/* Estilo próprio, sem frameworks. */
+
+:root {
+	--fundo: #f4f5f7;
+	--cartao: #ffffff;
+	--tinta: #24292f;
+	--tinta-fraca: #6b7280;
+	--marca: #4a90e2;
+	--marca-escura: #2f6fb8;
+	--realce: #eef4fc;
+	--borda: #d8dce2;
+	--erro: #b42318;
+	--erro-fundo: #fdf2f1;
+	--ok: #1a7f47;
+	--ok-fundo: #eef8f2;
+	--raio: 8px;
+	--sombra: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 10%);
+}
+
+* { box-sizing: border-box; }
+
+body {
+	margin: 0;
+	background: var(--fundo);
+	color: var(--tinta);
+	font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+		"Helvetica Neue", Arial, sans-serif;
+}
+
+.contido { max-width: 46rem; margin: 0 auto; padding: 0 1rem; }
+.contido.largo { max-width: 64rem; }
+
+/* ---------- topo ---------- */
+
+.topo {
+	background: var(--cartao);
+	border-bottom: 1px solid var(--borda);
+	margin-bottom: 1.5rem;
+}
+
+.barra {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	min-height: 3.25rem;
+}
+
+.marca { font-weight: 600; text-decoration: none; color: var(--tinta); }
+
+.barra nav { display: flex; align-items: center; gap: 1rem; }
+.barra nav a { color: var(--tinta-fraca); text-decoration: none; }
+.barra nav a:hover { color: var(--marca); }
+
+.embutido { display: inline; margin: 0; }
+
+/* ---------- blocos ---------- */
+
+.cartao {
+	background: var(--cartao);
+	border: 1px solid var(--borda);
+	border-radius: var(--raio);
+	box-shadow: var(--sombra);
+	padding: 1.5rem;
+	margin-bottom: 1.5rem;
+}
+
+.cartao.estreito { max-width: 24rem; margin-inline: auto; margin-top: 3rem; }
+
+h1 { font-size: 1.4rem; margin: 0 0 1rem; }
+h2 { font-size: 1.1rem; margin: 1.5rem 0 .75rem; }
+
+.nota { color: var(--tinta-fraca); font-size: .875rem; }
+
+code {
+	background: var(--realce);
+	border-radius: 4px;
+	padding: .1em .35em;
+	font-size: .9em;
+}
+
+/* ---------- formulários ---------- */
+
+.campo { margin: 0 0 1rem; }
+
+label {
+	display: block;
+	font-weight: 500;
+	font-size: .875rem;
+	margin-bottom: .3rem;
+}
+
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+input[type="file"],
+select,
+textarea {
+	width: 100%;
+	padding: .5rem .65rem;
+	border: 1px solid var(--borda);
+	border-radius: 6px;
+	background: var(--cartao);
+	color: inherit;
+	font: inherit;
+}
+
+textarea { min-height: 7rem; resize: vertical; }
+
+small { display: block; color: var(--tinta-fraca); font-size: .8rem; margin-top: .25rem; }
+
+button, .botao {
+	display: inline-block;
+	padding: .55rem 1.1rem;
+	border: 1px solid var(--borda);
+	border-radius: 6px;
+	background: var(--cartao);
+	color: var(--tinta);
+	font: inherit;
+	cursor: pointer;
+	text-decoration: none;
+}
+
+button:hover, .botao:hover { background: var(--realce); }
+
+button.primario {
+	background: var(--marca);
+	border-color: var(--marca);
+	color: #fff;
+}
+
+button.primario:hover { background: var(--marca-escura); border-color: var(--marca-escura); }
+
+button.link {
+	border: none;
+	background: none;
+	padding: 0;
+	color: var(--tinta-fraca);
+}
+
+button.link:hover { background: none; color: var(--marca); }
+
+:focus-visible {
+	outline: 2px solid var(--marca);
+	outline-offset: 2px;
+}
+
+/* ---------- mensagens ---------- */
+
+.errorlist, .avisos { list-style: none; padding: 0; margin: 0 0 1rem; }
+
+.errorlist li, .aviso {
+	padding: .6rem .8rem;
+	border-radius: 6px;
+	margin-bottom: .5rem;
+	font-size: .9rem;
+}
+
+.errorlist li, .aviso.error {
+	background: var(--erro-fundo);
+	color: var(--erro);
+	border: 1px solid color-mix(in srgb, var(--erro) 25%, transparent);
+}
+
+.aviso.success {
+	background: var(--ok-fundo);
+	color: var(--ok);
+	border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent);
+}
+
+.aviso.info, .aviso.warning {
+	background: var(--realce);
+	border: 1px solid var(--borda);
+}
+
+span.erro { display: block; color: var(--erro); font-size: .85rem; margin-top: .25rem; }
+
+/* ---------- tabelas ---------- */
+
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { text-align: left; padding: .55rem .5rem; border-bottom: 1px solid var(--borda); }
+th { color: var(--tinta-fraca); font-weight: 500; }
+
+.selo {
+	display: inline-block;
+	padding: .1rem .5rem;
+	border-radius: 999px;
+	font-size: .75rem;
+}
+
+.selo.enviado { background: var(--ok-fundo); color: var(--ok); }
+.selo.falhou { background: var(--erro-fundo); color: var(--erro); }
+.selo.enviando { background: var(--realce); color: var(--tinta-fraca); }

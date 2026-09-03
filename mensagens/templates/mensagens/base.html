@@ -1,0 +1,40 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="robots" content="noindex, nofollow">
+	<title>{% block titulo %}Emailing{% endblock %}</title>
+	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✉️</text></svg>">
+	<link rel="stylesheet" href="{% static 'mensagens/estilo.css' %}">
+	{% block extra_head %}{% endblock %}
+</head>
+<body>
+	{% if user.is_authenticated %}
+	<header class="topo">
+		<div class="contido barra">
+			<a class="marca" href="{% url 'mensagens:inicio' %}">✉️ Emailing</a>
+			<nav>
+				<a href="{% url 'mensagens:inicio' %}">Redigir</a>
+				<form method="post" action="{% url 'mensagens:sair' %}" class="embutido">
+					{% csrf_token %}
+					<button type="submit" class="link">Sair</button>
+				</form>
+			</nav>
+		</div>
+	</header>
+	{% endif %}
+
+	<main class="contido">
+		{% if messages %}
+		<ul class="avisos">
+			{% for m in messages %}<li class="aviso {{ m.tags }}">{{ m }}</li>{% endfor %}
+		</ul>
+		{% endif %}
+
+		{% block conteudo %}{% endblock %}
+	</main>
+
+	{% block scripts %}{% endblock %}
+</body>
+</html>
