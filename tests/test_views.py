@@ -1,9 +1,22 @@
 """Fluxo de redação: formulário, prévia e a casca de navegação."""
 
+import re
+
 import pytest
 from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django.urls import reverse
+
+_TAG_BOTAO_ENVIAR = re.compile(r'<button[^>]*name="acao" value="enviar"[^>]*>')
+_TAG_PAINEL_PREVIA = re.compile(r'<div class="painel-previa"[^>]*>')
+
+
+def _tag_botao_enviar(html: str) -> str:
+    return _TAG_BOTAO_ENVIAR.search(html).group(0)
+
+
+def _tag_painel_previa(html: str) -> str:
+    return _TAG_PAINEL_PREVIA.search(html).group(0)
 
 pytestmark = pytest.mark.django_db
 DOMINIOS = override_settings(ALIAS_ALLOWED_DOMAINS=["leonardocosta.dev"])
@@ -36,6 +49,19 @@ def test_tela_de_redacao_carrega(client, logado):
 
 
 @DOMINIOS
+def test_sem_previa_botao_enviar_nasce_escondido(client, logado):
+    """O botão Enviar e o painel de prévia sempre existem no DOM (para a
+    prévia ao vivo poder populá-los sem reload), mas nascem `hidden` até
+    haver uma prévia — sem JS, o comportamento de antes se preserva."""
+    resposta = client.get(reverse("mensagens:inicio"))
+    conteudo = resposta.content.decode()
+    assert 'name="hash_previa"' in conteudo  # sempre presente, começa vazio
+    assert 'value=""' in conteudo
+    assert "hidden" in _tag_botao_enviar(conteudo)
+    assert "hidden" in _tag_painel_previa(conteudo)
+
+
+@DOMINIOS
 def test_previa_mostra_html_sanitizado_no_iframe(client, logado):
     resposta = client.post(
         reverse("mensagens:inicio"),
@@ -59,9 +85,10 @@ def test_previa_mostra_html_sanitizado_no_iframe(client, logado):
     assert "<script>" not in conteudo  # nunca sem escapar, em lugar nenhum
     inicio_previa = conteudo.index("previa-iframe")
     assert "alert(1)" not in conteudo[inicio_previa:]
-    # Depois de uma prévia, o botão Enviar e o hash que a amarra aparecem.
-    assert 'name="hash_previa"' in conteudo
-    assert 'value="enviar"' in conteudo
+    # Depois de uma prévia, o hash não fica vazio e o botão Enviar não tem
+    # mais o atributo hidden que carregava na carga inicial.
+    assert 'name="hash_previa" value=""' not in conteudo
+    assert "hidden" not in _tag_botao_enviar(conteudo)
 
 
 @DOMINIOS
@@ -227,6 +254,52 @@ def test_envio_bem_sucedido_redireciona_para_fora_da_url_de_envio(client, logado
 
     assert resposta.status_code == 302
     assert resposta.url.startswith("/historico/")
+
+
+@DOMINIOS
+def test_previa_ajax_devolve_json_com_html_sanitizado(client, logado):
+    resposta = client.post(
+        reverse("mensagens:previa_ajax"),
+        {
+            "alias": "financeiro", "para": "c@x.com", "assunto": "Oi",
+            "corpo": "<p><b>Olá</b></p><script>alert(1)</script>",
+        },
+    )
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo["ok"] is True
+    assert "<b>Olá</b>" in corpo["html"]
+    assert "<script>" not in corpo["html"]
+    assert "hash" in corpo and corpo["hash"]
+
+
+@DOMINIOS
+def test_previa_ajax_com_dados_invalidos_devolve_erro_sem_quebrar(client, logado):
+    resposta = client.post(
+        reverse("mensagens:previa_ajax"), {"alias": "financeiro", "para": "", "corpo": "oi"}
+    )
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo["ok"] is False
+    assert corpo["erros"]
+
+
+@DOMINIOS
+def test_previa_ajax_bate_com_a_previa_do_post_completo(client, logado):
+    """As duas rotas usam a mesma função — o hash de uma serve na outra."""
+    dados = {"alias": "financeiro", "para": "c@x.com", "assunto": "Oi", "corpo": "<p>oi</p>"}
+
+    via_ajax = client.post(reverse("mensagens:previa_ajax"), dados).json()
+    via_post = client.post(reverse("mensagens:inicio"), {**dados, "acao": "previa"})
+
+    assert via_ajax["hash"] == via_post.context["previa"]["hash"]
+    assert via_ajax["html"] == via_post.context["previa"]["html"]
+
+
+@DOMINIOS
+def test_previa_ajax_get_nao_permitido(client, logado):
+    resposta = client.get(reverse("mensagens:previa_ajax"))
+    assert resposta.status_code == 405
 
 
 @DOMINIOS

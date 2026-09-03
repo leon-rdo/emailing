@@ -252,6 +252,41 @@ details > pre {
    confusão de um botão que nunca funciona. */
 .trix-button-group--file-tools { display: none !important; }
 
+.cabecalho-campo {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: .3rem;
+}
+
+.cabecalho-campo label { margin-bottom: 0; }
+
+.alternar {
+	display: flex;
+	align-items: center;
+	gap: .35rem;
+	font-weight: 400;
+	font-size: .85rem;
+	color: var(--tinta-fraca);
+	cursor: pointer;
+}
+
+.editor-html-bruto {
+	width: 100%;
+	min-height: 12rem;
+	font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	font-size: .85rem;
+	border: 1px solid var(--borda);
+	border-radius: 6px;
+	padding: .75rem;
+	resize: vertical;
+}
+
+.previa-status {
+	font-weight: 400;
+	font-size: .8rem;
+}
+
 details.cartao summary {
 	cursor: pointer;
 	font-weight: 600;

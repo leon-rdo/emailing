@@ -7,17 +7,54 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.files.uploadhandler import MemoryFileUploadHandler
 from django.core.paginator import Paginator
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
 
 from .aliases import alias_por_slug, carregar_aliases
-from .anexos import ErroAnexo, criar_token, ler_anexos, listar_anexos, remover_anexo, salvar_anexo
+from .anexos import ErroAnexo, criar_token, listar_anexos, remover_anexo, salvar_anexo
 from .eml import ErroImportacaoEML, analisar_eml, normalizar_message_id, referencias_para_resposta
 from .envio import enviar_email
 from .forms import FormularioLogin, FormularioRedacao
 from .models import RegistroEnvio
 from .montagem import DadosRedacao, calcular_hash_previa, montar_email
+
+
+def _dados_do_formulario(form) -> DadosRedacao:
+    return DadosRedacao(
+        para=form.cleaned_data["para"],
+        cc=form.cleaned_data["cc"],
+        cco=form.cleaned_data["cco"],
+        assunto=form.cleaned_data["assunto"],
+        corpo_html=form.cleaned_data["corpo"],
+        citacao_html=form.cleaned_data["citacao_html"],
+        in_reply_to=form.cleaned_data["in_reply_to"],
+        referencias=form.cleaned_data["referencias"],
+    )
+
+
+def _previa_de(form, token: str) -> dict:
+    """Prévia a partir de um formulário já validado — usada tanto pelo POST
+    completo quanto pelo endpoint de prévia ao vivo, para as duas rotas nunca
+    divergirem sobre o que seria enviado.
+
+    Não lê o conteúdo dos anexos: o corpo HTML não depende deles (viram parte
+    MIME separada, nunca aparecem no HTML), só os ids entram no hash. Ler
+    bytes de anexo a cada pausa de digitação seria caro à toa.
+    """
+    alias = alias_por_slug(form.cleaned_data["alias"])
+    dados = _dados_do_formulario(form)
+    ids_anexos = [a.id for a in listar_anexos(token)]
+    mensagem = montar_email(dados, alias)
+    html_final = mensagem.alternatives[0][0]
+    return {
+        "dados": dados,
+        "alias": alias,
+        "html": html_final,
+        "texto": mensagem.body,
+        "hash": calcular_hash_previa(dados, alias, html_final, ids_anexos),
+    }
 
 
 @method_decorator(login_not_required, name="dispatch")
@@ -109,24 +146,10 @@ def redigir(request):
     previa = None
     if request.method == "POST" and form.is_valid():
         acao = request.POST.get("acao")
-        alias = alias_por_slug(form.cleaned_data["alias"])
-        dados = DadosRedacao(
-            para=form.cleaned_data["para"],
-            cc=form.cleaned_data["cc"],
-            cco=form.cleaned_data["cco"],
-            assunto=form.cleaned_data["assunto"],
-            corpo_html=form.cleaned_data["corpo"],
-            citacao_html=form.cleaned_data["citacao_html"],
-            in_reply_to=form.cleaned_data["in_reply_to"],
-            referencias=form.cleaned_data["referencias"],
-        )
-        ids_anexos = [a.id for a in anexos_lista]
-        mensagem = montar_email(dados, alias, anexos=ler_anexos(token))
-        html_final = mensagem.alternatives[0][0]
-        hash_atual = calcular_hash_previa(dados, alias, html_final, ids_anexos)
+        resultado = _previa_de(form, token)
 
-        if acao == "enviar" and request.POST.get("hash_previa") == hash_atual:
-            registro = enviar_email(alias, dados, token_anexos=token)
+        if acao == "enviar" and request.POST.get("hash_previa") == resultado["hash"]:
+            registro = enviar_email(resultado["alias"], resultado["dados"], token_anexos=token)
             if registro.status == RegistroEnvio.Status.ENVIADO:
                 messages.success(request, "E-mail enviado.")
             else:
@@ -140,12 +163,40 @@ def redigir(request):
                 "antes de enviar.",
             )
 
-        previa = {"html": html_final, "texto": mensagem.body, "hash": hash_atual}
+        previa = resultado
 
     return render(
         request, "mensagens/redigir.html",
         {"form": form, "previa": previa, "anexos": anexos_lista},
     )
+
+
+def previa_ajax(request):
+    """Mesmo cálculo de `redigir()`, só que devolvendo JSON em vez de HTML —
+    o que a prévia ao vivo do template chama a cada pausa de digitação. Nunca
+    envia nada nem toca em anexos; só reflete o que `_previa_de` calcularia.
+    """
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "erros": ["método inválido"]}, status=405)
+
+    form = FormularioRedacao(request.POST, aliases=carregar_aliases())
+    if not form.is_valid():
+        erros = list(form.non_field_errors()) + [
+            str(erro)
+            for campo, lista in form.errors.items()
+            if campo != "__all__"
+            for erro in lista
+        ]
+        return JsonResponse({"ok": False, "erros": erros})
+
+    token = request.POST.get("rascunho", "").strip()
+    resultado = _previa_de(form, token)
+    return JsonResponse({
+        "ok": True,
+        "html": resultado["html"],
+        "texto": resultado["texto"],
+        "hash": resultado["hash"],
+    })
 
 
 @csrf_exempt
