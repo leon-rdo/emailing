@@ -49,6 +49,11 @@ touch /var/log/emailing-limpeza.log /var/log/emailing-agendados.log
 chown emailing:www-data /var/log/emailing-limpeza.log /var/log/emailing-agendados.log
 systemctl reload cron 2>/dev/null || systemctl restart cron
 
+# Atalho para rodar manage.py como o usuário do serviço — é por aqui que o
+# `enviar` é chamado por ssh. Ver deploy/emailing-cli.sh.
+echo "== atalho /usr/local/bin/emailing =="
+install -m 755 "$ALVO/deploy/emailing-cli.sh" /usr/local/bin/emailing
+
 echo "== reiniciando =="
 systemctl restart "$SERVICO"
 sleep 2

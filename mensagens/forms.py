@@ -1,5 +1,6 @@
 """Formulários do app."""
 
+from datetime import datetime
 from email.utils import formataddr, getaddresses, parseaddr
 
 from django import forms
@@ -12,7 +13,8 @@ from django_otp.forms import OTPAuthenticationForm
 from .montagem import DadosRedacao
 
 # O `datetime-local` do navegador manda "2026-09-10T09:00", que não está nos
-# DATETIME_INPUT_FORMATS do locale pt-br.
+# DATETIME_INPUT_FORMATS do locale pt-br. Os outros formatos existem para a
+# linha de comando (`manage.py enviar --em`), onde quem digita é gente.
 FORMATOS_ENVIAR_EM = [
     "%Y-%m-%dT%H:%M",
     "%Y-%m-%dT%H:%M:%S",
@@ -20,6 +22,16 @@ FORMATOS_ENVIAR_EM = [
     "%Y-%m-%d %H:%M:%S",
     "%d/%m/%Y %H:%M",
 ]
+
+
+def analisar_enviar_em(bruto: str) -> datetime:
+    """Texto → datetime com fuso, pelos mesmos formatos que a tela aceita.
+
+    Levanta `ValidationError`. Existe para o `manage.py enviar --em` não ter um
+    segundo parser de data: dois parsers acabam divergindo justamente no
+    formato que você usa menos.
+    """
+    return forms.DateTimeField(input_formats=FORMATOS_ENVIAR_EM).clean(bruto)
 
 
 def dados_do_formulario(form) -> DadosRedacao:

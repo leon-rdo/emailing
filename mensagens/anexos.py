@@ -7,6 +7,11 @@ anexação e carregado de volta pelo formulário a cada POST seguinte (campo
 `rascunho`, em `forms.FormularioRedacao`) — os arquivos daquele token ficam em
 `RASCUNHOS_DIR/<token>/`, nomeados `<id>__<nome-original>`.
 
+A linha de comando (`manage.py enviar --anexo`) entra pela mesma pasta, via
+`guardar_caminhos()`: a partir dali o rascunho é indistinguível de um vindo do
+navegador. As regras de tamanho e extensão vivem em `_validar()` justamente
+para as duas origens não divergirem.
+
 E há uma armadilha aqui: mensagem **agendada** guarda os anexos neste mesmo
 lugar, por um prazo que pode passar do TTL da limpeza. Ver
 `limpar_rascunhos_expirados`.
@@ -74,9 +79,10 @@ def _pasta(token: str) -> Path:
 def _validar(nome: str, tamanho: int, existentes: list[AnexoRascunho]) -> None:
     """As regras que valem para QUALQUER origem de anexo.
 
-    Ficam num lugar só de propósito: se uma segunda origem aceitasse o que o
-    formulário recusa (ou o contrário), a divergência apareceria como
-    "funciona aqui e não ali" — um relatório de bug para você mesmo.
+    Ficam num lugar só de propósito: hoje o upload do navegador e o `--anexo` do
+    `manage.py enviar` entram por aqui. Se a linha de comando aceitasse o que o
+    formulário recusa (ou o contrário), "funciona no navegador e não no
+    terminal" viraria um relatório de bug para você mesmo.
     """
     extensao = Path(nome).suffix.lstrip(".").lower()
     if extensao in settings.ANEXOS_EXTENSOES_BLOQUEADAS:
@@ -143,6 +149,59 @@ def remover_anexo(token: str, anexo_id: str) -> None:
         if caminho.name.startswith(f"{anexo_id}__"):
             caminho.unlink(missing_ok=True)
             return
+
+
+def inspecionar_caminhos(
+    caminhos: list[str], existentes: list[AnexoRascunho] = ()
+) -> list[AnexoRascunho]:
+    """Valida arquivos do disco local **sem gravar nada**, e os descreve.
+
+    É o que o `--conferir` do `manage.py enviar` usa. Como a prévia da tela (ver
+    `views._previa_de`), não precisa dos bytes: anexo nunca aparece no corpo
+    HTML, vira parte MIME separada. O `id` sai vazio porque id só existe depois
+    de haver pasta de rascunho.
+    """
+    acumulado = list(existentes)
+    descritos: list[AnexoRascunho] = []
+    for bruto in caminhos:
+        caminho = Path(bruto).expanduser()
+        if not caminho.is_file():
+            raise ErroAnexo(f"Anexo não encontrado: {bruto}")
+        try:
+            tamanho = caminho.stat().st_size
+        except OSError as exc:
+            raise ErroAnexo(f"Não consegui ler {bruto}: {exc}") from exc
+        nome = _nome_seguro(caminho.name)
+        _validar(nome, tamanho, acumulado)
+        descrito = AnexoRascunho(id="", nome=nome, tamanho=tamanho, tipo=_tipo_de(nome))
+        acumulado.append(descrito)
+        descritos.append(descrito)
+    return descritos
+
+
+def guardar_caminhos(token: str, caminhos: list[str]) -> list[AnexoRascunho]:
+    """Copia arquivos do disco local para a pasta de rascunho do token.
+
+    Valida **tudo** antes de copiar qualquer coisa: metade dos anexos gravada e
+    a outra metade recusada seria o pior dos mundos. Depois disso o rascunho é
+    igual a um vindo do navegador — é o que permite a linha de comando agendar
+    com anexo sem um segundo caminho de código.
+    """
+    inspecionar_caminhos(caminhos, listar_anexos(token))
+    pasta = _pasta(token)
+    pasta.mkdir(parents=True, exist_ok=True)
+    guardados = []
+    for bruto in caminhos:
+        origem = Path(bruto).expanduser()
+        nome = _nome_seguro(origem.name)
+        id_ = secrets.token_hex(8)
+        shutil.copyfile(origem, pasta / f"{id_}__{nome}")
+        guardados.append(
+            AnexoRascunho(
+                id=id_, nome=nome, tamanho=origem.stat().st_size, tipo=_tipo_de(nome)
+            )
+        )
+    return guardados
 
 
 def ler_anexos(token: str) -> list[Anexo]:
