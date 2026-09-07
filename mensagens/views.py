@@ -16,29 +16,15 @@ from .aliases import alias_por_slug, carregar_aliases
 from .anexos import ErroAnexo, criar_token, listar_anexos, remover_anexo, salvar_anexo
 from .eml import ErroImportacaoEML, analisar_eml, normalizar_message_id, referencias_para_resposta
 from .envio import enviar_email
-from .forms import FormularioLogin, FormularioPrevia, FormularioRedacao
+from .forms import FormularioLogin, FormularioPrevia, FormularioRedacao, dados_do_formulario
 from .marcadores import GLOSSARIO
 from .models import RegistroEnvio
 from .montagem import (
-    DadosRedacao,
     calcular_hash_previa,
     emoldurar_para_previa,
     montar_corpo,
     montar_email,
 )
-
-
-def _dados_do_formulario(form) -> DadosRedacao:
-    return DadosRedacao(
-        para=form.cleaned_data["para"],
-        cc=form.cleaned_data["cc"],
-        cco=form.cleaned_data["cco"],
-        assunto=form.cleaned_data["assunto"],
-        corpo_html=form.cleaned_data["corpo"],
-        citacao_html=form.cleaned_data["citacao_html"],
-        in_reply_to=form.cleaned_data["in_reply_to"],
-        referencias=form.cleaned_data["referencias"],
-    )
 
 
 def _previa_de(form, token: str) -> dict:
@@ -51,7 +37,7 @@ def _previa_de(form, token: str) -> dict:
     bytes de anexo a cada pausa de digitação seria caro à toa.
     """
     alias = alias_por_slug(form.cleaned_data["alias"])
-    dados = _dados_do_formulario(form)
+    dados = dados_do_formulario(form)
     ids_anexos = [a.id for a in listar_anexos(token)]
     mensagem = montar_email(dados, alias)
     html_final = mensagem.alternatives[0][0]

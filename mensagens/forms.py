@@ -9,6 +9,27 @@ from django.core.validators import EmailValidator
 from django_otp import devices_for_user
 from django_otp.forms import OTPAuthenticationForm
 
+from .montagem import DadosRedacao
+
+
+def dados_do_formulario(form) -> DadosRedacao:
+    """`DadosRedacao` a partir de um formulário já validado.
+
+    Compartilhado pela view e pelo `manage.py enviar`: as duas rotas montam a
+    mensagem a partir do mesmo objeto, então não existe campo que uma preenche
+    e a outra esquece.
+    """
+    return DadosRedacao(
+        para=form.cleaned_data["para"],
+        cc=form.cleaned_data["cc"],
+        cco=form.cleaned_data["cco"],
+        assunto=form.cleaned_data["assunto"],
+        corpo_html=form.cleaned_data["corpo"],
+        citacao_html=form.cleaned_data["citacao_html"],
+        in_reply_to=form.cleaned_data["in_reply_to"],
+        referencias=form.cleaned_data["referencias"],
+    )
+
 
 class FormularioLogin(OTPAuthenticationForm):
     """Login numa etapa só: usuário, senha e código no mesmo envio.
