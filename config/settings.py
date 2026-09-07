@@ -354,5 +354,11 @@ LOGGING = {
     "loggers": {
         "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
         "mensagens": {"handlers": ["console"], "level": "INFO", "propagate": False},
+        # O django-axes anuncia "AXES: BEGIN version…" em INFO a cada
+        # inicialização do app. No serviço web é uma linha por worker; no cron
+        # de minuto do `despachar_agendados` seria uma linha por minuto, para
+        # sempre — e o log do despachante existe para mostrar o que ele fez, não
+        # para provar que rodou. WARNING preserva o que interessa (lockout).
+        "axes": {"handlers": ["console"], "level": "WARNING", "propagate": False},
     },
 }
