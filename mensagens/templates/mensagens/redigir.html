@@ -86,7 +86,7 @@
 				</label>
 			</div>
 			{{ form.corpo }}
-			<trix-editor id="editor-trix" input="id_corpo" class="editor-trix" placeholder="Escreva sua mensagem…"></trix-editor>
+			<trix-editor id="editor-trix" input="id_corpo" class="editor-trix" placeholder="Escreva sua mensagem…" aria-label="Mensagem"></trix-editor>
 			<textarea id="editor-html-bruto" class="editor-html-bruto" hidden placeholder="&lt;table&gt;…&lt;/table&gt;"></textarea>
 			<small>O HTML colado aqui passa pela mesma limpeza de segurança do editor normal — scripts e afins são removidos.</small>
 		</div>
@@ -138,9 +138,9 @@
 		<input type="hidden" name="hash_previa" value="{{ previa.hash|default:'' }}">
 
 		<div class="painel-previa" {% if not previa %}hidden{% endif %}>
-			<h2>Prévia <span class="previa-status nota"></span></h2>
+			<h2>Prévia <span class="previa-status nota" role="status"></span></h2>
 			<p class="nota">O que seria enviado: corpo sanitizado + assinatura do alias. Atualiza sozinha enquanto você digita.</p>
-			<iframe class="previa-iframe" sandbox="" srcdoc="{{ previa.html_previa|default:'' }}"></iframe>
+			<iframe class="previa-iframe" title="Prévia da mensagem" sandbox="" srcdoc="{{ previa.html_previa|default:'' }}"></iframe>
 			<details>
 				<summary>Ver parte em texto simples</summary>
 				<pre class="previa-texto">{{ previa.texto|default:'' }}</pre>

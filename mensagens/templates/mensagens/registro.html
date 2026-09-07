@@ -36,7 +36,7 @@
 
 	{% if registro.corpo_html %}
 	<h2>Corpo enviado</h2>
-	<iframe class="previa-iframe" sandbox="" srcdoc="{{ registro.corpo_html }}"></iframe>
+	<iframe class="previa-iframe" title="Corpo enviado" sandbox="" srcdoc="{{ registro.corpo_html }}"></iframe>
 	{% endif %}
 </div>
 {% endblock %}

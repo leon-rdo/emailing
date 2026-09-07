@@ -69,6 +69,7 @@ document.addEventListener("trix-initialize", function (evento) {
 	botaoCodigo.className = "trix-button trix-button--icon botao-codigo-inline";
 	botaoCodigo.dataset.trixAttribute = "codigo";
 	botaoCodigo.title = "Código (só o trecho selecionado)";
+	botaoCodigo.setAttribute("aria-label", "Código");
 	botaoCodigo.textContent = "</>";
 	grupoTexto.appendChild(botaoCodigo);
 
@@ -76,6 +77,7 @@ document.addEventListener("trix-initialize", function (evento) {
 	var seletor = document.createElement("select");
 	seletor.className = "seletor-de-fonte";
 	seletor.title = "Fonte do trecho selecionado";
+	seletor.setAttribute("aria-label", "Fonte do trecho selecionado");
 	FONTES.forEach(function (par) {
 		var opcao = document.createElement("option");
 		opcao.value = par[0];
