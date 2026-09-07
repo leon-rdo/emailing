@@ -13,6 +13,8 @@ from django.core.management.base import BaseCommand
 
 from mensagens.aliases import carregar_aliases, verificar_aliases
 from mensagens.assinaturas import origem_da_assinatura
+from mensagens.backup import avisos as avisos_de_backup
+from mensagens.backup import idade_do_ultimo
 from mensagens.models import ContaEmail, EnvioAgendado
 
 
@@ -69,6 +71,11 @@ class Command(BaseCommand):
         if pendentes:
             self.stdout.write(f"{pendentes} envio(s) agendado(s) esperando despacho.")
 
+        # Avisos, não problemas: não fazem o comando falhar, e por isso não
+        # travam o `implantar.sh`, que roda este comando antes de reiniciar.
+        for aviso in avisos_de_backup():
+            self.stdout.write(self.style.WARNING(f"backup: {aviso}"))
+
         resumo = f"{contas.count()} conta(s), {len(carregar_aliases())} alias(es) OK."
         self.stdout.write(self.style.SUCCESS(resumo))
 
@@ -99,6 +106,11 @@ class Command(BaseCommand):
             "agendados_pendentes": EnvioAgendado.objects.filter(
                 status=EnvioAgendado.Status.AGENDADO
             ).count(),
+            "avisos": avisos_de_backup(),
+            "horas_desde_o_backup": (
+                round(idade_do_ultimo().total_seconds() / 3600, 1)
+                if idade_do_ultimo() else None
+            ),
         }, ensure_ascii=False))
         if problemas:
             raise SystemExit(1)

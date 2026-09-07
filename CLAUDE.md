@@ -48,6 +48,7 @@ uv run pytest
   - `models.py` — `ContaEmail`, `Alias`, `RegistroEnvio`
   - `cripto.py` — cifra a senha SMTP
   - `aliases.py` — consulta ao banco + `verificar_aliases()`
+  - `backup.py` — cópia verificada do banco, rotação e manifesto
   - `agendamento.py` — fila do envio programado: criar, reivindicar, despachar
   - `saneamento.py` — embutir CSS, limpar HTML, HTML→texto
   - `montagem.py` — monta a mensagem (função pura)
@@ -105,8 +106,11 @@ real**, não no código:
 `DATA_DIR` guarda o banco SQLite (contas, aliases, assinaturas, histórico, **a
 fila de agendados**) e os anexos pendentes — inclusive os das mensagens
 agendadas, que precisam sobreviver ao TTL do rascunho. **Apagar `data/` apaga
-tudo isso** — e **não há backup automático**, a maior pendência conhecida do
-projeto, agravada desde que existe fila (ver
+tudo isso.**
+
+Há backup diário desde 2026-09-07 (`manage.py backup`, cron, 14 cópias em
+`/var/backups/emailing`), verificado antes de rotacionar. **Continua sem cópia
+fora da máquina** — é a pendência que sobrou (ver
 [docs/operacao.md](docs/operacao.md#estado-e-backup)).
 
 O `SECRET_KEY` abre as senhas SMTP cifradas: perdê-lo exige redigitar todas.

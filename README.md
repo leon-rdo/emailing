@@ -235,5 +235,27 @@ configuração adicional — não existe SPF ou DKIM "por caixa", só por domín
 ## Estado
 
 `DATA_DIR` (`data/` em dev, `/var/www/emailing/data` em produção) guarda o
-banco SQLite e os anexos ainda não enviados. **Apagar esse diretório apaga o
-histórico de envios, as contas e os aliases** — não há outra cópia.
+banco SQLite e os anexos ainda não enviados — inclusive os das mensagens
+agendadas. Apagar esse diretório apaga o histórico, as contas, os aliases e a
+fila de envios que ainda não saíram.
+
+Em produção há backup diário: `manage.py backup` copia o banco com a API de
+backup online do SQLite (um `cp` num banco em WAL não é seguro), verifica a
+cópia com `PRAGMA integrity_check` antes de rotacionar as antigas, e guarda as
+14 mais recentes em `/var/backups/emailing` — fora do `DATA_DIR`, que é o que
+ele protege.
+
+```bash
+uv run manage.py backup             # faz uma agora
+uv run manage.py backup --listar
+uv run manage.py backup --conferir  # este arquivo serve para restaurar?
+```
+
+`--conferir` responde três perguntas: o arquivo abre, passa no
+`integrity_check`, e as senhas SMTP lá dentro abrem com o `SECRET_KEY` **que a
+máquina tem agora** — essa última é a que costuma ser esquecida, porque as
+senhas são cifradas com chave derivada dele. O procedimento de restauração está
+em [docs/operacao.md](docs/operacao.md).
+
+O backup é local: protege de apagar `data/`, de uma migração ruim e de
+corrupção, e não protege de perder o disco. Cópia externa continua sendo manual.

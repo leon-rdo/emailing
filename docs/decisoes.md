@@ -256,6 +256,89 @@ ficar grande de verdade, reusar uma conexão por conta é o próximo passo.
 
 ---
 
+## Backup
+
+Era a maior pendência conhecida do projeto: `DATA_DIR` guardava contas,
+aliases, assinaturas, histórico e a fila de agendados, sem nenhuma outra cópia.
+Resolvido em 2026-09-07 com `manage.py backup` num cron diário.
+
+### `Connection.backup()`, não `cp`
+
+**Alternativa:** `cp data/db.sqlite3 backup.sqlite3`.
+**Por que não:** o banco roda em WAL. Um `cp` leva o arquivo principal sem o
+`-wal`, e o que sai pode estar desatualizado ou quebrado — e você só descobre na
+hora de restaurar. `sqlite3.Connection.backup()` é a API de backup **online** do
+SQLite: respeita o journal, tolera escrita concorrente, e por isso não é preciso
+parar o serviço.
+
+### A cópia é verificada antes de a rotação encostar nas antigas {#verificar}
+
+Um backup que nunca foi lido não é um backup. Todo arquivo novo passa por
+`PRAGMA integrity_check`; se falhar, ele é apagado e o comando levanta — a
+rotação nem chega a rodar.
+
+A ordem é a decisão inteira: **nunca se apaga uma cópia boa para dar lugar a uma
+ruim.** Rotacionar primeiro e verificar depois pareceria igual e destruiria o
+histórico de backups no exato dia em que ele passasse a fazer falta.
+
+### O manifesto guarda a impressão digital do `SECRET_KEY` {#impressao}
+
+As senhas SMTP são cifradas com chave derivada do `SECRET_KEY`. Um banco
+restaurado com outra chave traz senha ilegível — e até aqui isso só aparecia
+quando um envio falhava, com o serviço já restaurado e o problema já instalado.
+
+Cada cópia leva ao lado um `.json` com o hash curto da chave (nunca a chave), e
+`backup --conferir` compara com a chave atual. Passa a ser uma pergunta que se
+faz **antes** de restaurar, não um sintoma que se descobre depois.
+
+### `criar()` recusa rodar dentro de `transaction.atomic()` {#atomic}
+
+Parece paranoia e não é: a API de backup do SQLite pede um bloqueio de leitura
+na origem, e uma transação de escrita aberta na mesma conexão segura esse
+bloqueio. O laço de repetição do `sqlite3` do Python não tem teto — ele tenta de
+novo enquanto der `BUSY`, isto é, **para sempre, esperando por si mesmo**.
+
+Por `manage.py` (que é como o cron chama) não há transação aberta e nada disso
+acontece; foi o teste que encontrou, com `pytest.mark.django_db` embrulhando
+tudo num `atomic()`. "Trava calado" é o pior modo de falha possível para um
+backup, então a guarda troca o travamento por uma frase. É também por isso que
+`tests/test_backup.py` usa `django_db(transaction=True)`.
+
+### Dois backups no mesmo segundo é erro, não sobrescrita
+
+O nome tem precisão de segundo. Sobrescrever em silêncio significaria perder a
+cópia anterior porque alguém rodou o comando duas vezes seguidas — o pior jeito
+possível de descobrir isso. Levanta com a explicação.
+
+### `BACKUP_DIR` fora do `DATA_DIR` **e** fora do `BASE_DIR`
+
+Dentro do `DATA_DIR` (o padrão, que só serve em desenvolvimento) um
+`rm -rf data/` levaria junto exatamente o que o backup existe para proteger.
+Dentro do `BASE_DIR` seria pior e mais silencioso: o `rsync --delete` do deploy
+apagaria a pasta no próximo `implantar.sh`. Em produção é
+`/var/backups/emailing`, e o `verificar_config` avisa quando o padrão ficou
+valendo com `DEBUG` desligado.
+
+### Não existe comando de restauração
+
+**Alternativa:** `manage.py restaurar <arquivo>`.
+**Por que não:** escrever por cima do banco vivo é o tipo de operação que não
+deve caber num comando fácil de digitar por engano, e a restauração correta
+inclui parar o serviço e apagar o `-wal`/`-shm` do banco antigo (deixá-los ao
+lado do restaurado corrompe o resultado). São quatro passos documentados em
+[operacao.md](operacao.md#restaurar), feitos com atenção, uma vez na vida.
+
+### O que continua faltando: cópia fora da máquina
+
+O backup é local. Protege do provável (apagar `data/`, migração ruim,
+corrupção) e **não protege de perder o disco ou a VPS**. A cópia externa precisa
+de destino, credencial e cifra em repouso — e a cifra importa mais do que
+parece, porque banco mais `SECRET_KEY` entrega as senhas SMTP em claro. É a
+pendência que sobrou, e está registrada como tal em
+[operacao.md](operacao.md#o-que-ainda-falta-cópia-fora-da-máquina).
+
+---
+
 ## Marcadores
 
 ### A lista é fechada

@@ -1,0 +1,12 @@
+# Instalar em /etc/cron.d/emailing-backup (root:root, modo 644).
+# Cópia verificada do banco, diária.
+#
+# 03:30, antes da limpeza de rascunhos das 04:00 (horário do servidor): se a
+# limpeza fizer alguma besteira, o backup do dia é anterior a ela.
+#
+# Não precisa parar o serviço: `sqlite3.Connection.backup()` é a API de backup
+# online do SQLite e tolera escrita concorrente — ao contrário de um `cp`, que
+# num banco em WAL leva o arquivo principal sem o `-wal`.
+#
+# Python do venv direto, e não `uv run`, pelo mesmo motivo do despachante.
+30 3 * * * emailing /var/www/emailing/.venv/bin/python /var/www/emailing/manage.py backup >> /var/log/emailing-backup.log 2>&1

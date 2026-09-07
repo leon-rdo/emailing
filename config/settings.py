@@ -309,6 +309,22 @@ Path(FILE_UPLOAD_TEMP_DIR).mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
+# Backup
+# ---------------------------------------------------------------------------
+#
+# Em produção isto tem que apontar para FORA do DATA_DIR: o que o backup protege
+# é justamente o DATA_DIR, e um `rm -rf data/` levaria as duas cópias juntas
+# (`/var/backups/emailing`, no `.env`).
+#
+# O padrão cai dentro do DATA_DIR porque em desenvolvimento não há o que
+# proteger, e porque a alternativa seria pior: uma pasta no BASE_DIR seria
+# apagada pelo `rsync --delete` do deploy. O `verificar_config` avisa quando o
+# padrão ficou valendo com DEBUG desligado.
+BACKUP_DIR = Path(os.environ.get("BACKUP_DIR", DATA_DIR / "backups"))
+BACKUP_MANTER = env_int("BACKUP_MANTER", 14)
+
+
+# ---------------------------------------------------------------------------
 # Envio programado
 # ---------------------------------------------------------------------------
 #

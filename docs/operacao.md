@@ -165,6 +165,8 @@ cd /var/www/emailing && sudo -u emailing env \
 |---|---|
 | Limpar rascunhos abandonados | `manage.py limpar_rascunhos` (cron diário às 4h, `/etc/cron.d/emailing-limpeza`) |
 | Despachar agendados | `manage.py despachar_agendados` (cron de minuto, `/etc/cron.d/emailing-agendados`) |
+| Backup do banco | `manage.py backup` (cron diário às 3h30, `/etc/cron.d/emailing-backup`) |
+| Conferir um backup | `manage.py backup --conferir [arquivo]` |
 | Novo dispositivo TOTP | `manage.py criar_totp <usuário> --substituir` |
 | Destravar login após lockout | `manage.py axes_reset` |
 
@@ -174,26 +176,84 @@ cd /var/www/emailing && sudo -u emailing env \
 fila de agendados**) e os anexos ainda não enviados — inclusive os das mensagens
 agendadas, que ficam ali até a hora de sair.
 
-> **Apagar `data/` apaga tudo isso.** Não há outra cópia.
+> **Apagar `data/` apaga tudo isso** — inclusive mensagens que ainda **iam**
+> sair, desde que existe fila de agendados.
 
-Desde que existe fila, a falta de backup deixou de ser só perda de histórico:
-some com mensagens que ainda **iam** sair, e nada avisa. Isso subiu a prioridade
-do item abaixo.
-
-**Não existe backup automático — é a maior pendência conhecida do projeto.** Um
-`cp` do SQLite em WAL não é seguro; o certo é `sqlite3.Connection.backup()`,
-que respeita o journal. Enquanto não existe, um backup manual antes de
-qualquer coisa arriscada:
+Existe backup automático desde 2026-09-07: `manage.py backup`, diário às 03:30
+(horário do servidor) por `/etc/cron.d/emailing-backup`, guardando as 14 cópias
+mais recentes em `/var/backups/emailing` — **fora do `DATA_DIR`**, que é
+justamente o que ele protege, e fora do `$ALVO`, que o `rsync --delete` do
+deploy apaga.
 
 ```bash
-ssh leonardo_contabo "cd /var/www/emailing && sudo -u emailing \
-  python3 -c \"import sqlite3; o=sqlite3.connect('data/db.sqlite3'); \
-  d=sqlite3.connect('data/backup.sqlite3'); o.backup(d); d.close(); o.close()\""
+# fazer uma agora (antes de qualquer coisa arriscada)
+ssh leonardo_contabo 'emailing backup'
+
+# o que existe, e há quanto tempo
+ssh leonardo_contabo 'emailing backup --listar'
+
+# a pergunta que importa: este arquivo serve para restaurar?
+ssh leonardo_contabo 'emailing backup --conferir'
+
+ssh leonardo_contabo 'tail -20 /var/log/emailing-backup.log'
+```
+
+Não precisa parar o serviço: a cópia usa a API de backup online do SQLite, que
+respeita o WAL e tolera escrita concorrente. Cada cópia é verificada com
+`PRAGMA integrity_check` **antes** de a rotação encostar nas antigas — uma cópia
+boa nunca é apagada para dar lugar a uma ruim. Ao lado de cada arquivo fica um
+`.json` com contagens, migração aplicada e a impressão digital do `SECRET_KEY`.
+
+O `verificar_config` avisa (sem falhar) quando não há backup nenhum, quando o
+mais recente passou de 48 h — ou seja, quando o cron parou — e quando o
+`BACKUP_DIR` ficou dentro do `DATA_DIR`.
+
+### Restaurar
+
+Não há comando de restauração de propósito: escrever por cima do banco vivo é
+exatamente o tipo de operação que não deve caber num comando fácil de digitar
+por engano. São quatro passos:
+
+```bash
+ssh leonardo_contabo
+emailing backup --conferir /var/backups/emailing/db-AAAAMMDDTHHMMSSZ.sqlite3
+systemctl stop emailing
+cp /var/backups/emailing/db-AAAAMMDDTHHMMSSZ.sqlite3 /var/www/emailing/data/db.sqlite3
+chown emailing:www-data /var/www/emailing/data/db.sqlite3
+rm -f /var/www/emailing/data/db.sqlite3-wal /var/www/emailing/data/db.sqlite3-shm
+systemctl start emailing && emailing verificar_config
+```
+
+O `--conferir` antes de parar o serviço não é cerimônia: ele diz se o arquivo
+abre, se passa no `integrity_check` e se as senhas lá dentro abrem com o
+`SECRET_KEY` que a máquina tem agora. Descobrir qualquer um dos três com o
+serviço já parado é o pior momento possível.
+
+Apagar o `-wal` e o `-shm` é obrigatório: são o journal do banco **antigo**, e
+deixá-los ao lado do banco restaurado corrompe o resultado.
+
+### O que ainda falta: cópia fora da máquina
+
+O backup é local. Ele protege do que é mais provável — apagar `data/`, uma
+migração ruim, corrupção de arquivo — e **não protege de perder o disco ou a
+VPS**. Uma cópia externa precisa de destino, credencial e cifra em repouso, e a
+cifra importa mais aqui do que parece: junto com o `SECRET_KEY`, o banco entrega
+as senhas SMTP em claro.
+
+Enquanto não existe, uma cópia manual para a sua máquina:
+
+```bash
+scp leonardo_contabo:/var/backups/emailing/db-*.sqlite3 ~/backups-emailing/
 ```
 
 ### O `SECRET_KEY` abre as senhas
 
 As senhas SMTP são cifradas com chave derivada do `SECRET_KEY`. **Trocá-lo
 torna as senhas guardadas ilegíveis** — é preciso redigitá-las no admin. O
-`verificar_config` avisa quando isso acontece. Guarde o `SECRET_KEY` junto com
-o backup do banco, ou o backup não serve para nada.
+`verificar_config` avisa quando isso acontece.
+
+Uma cópia do banco levada para fora da máquina **só serve acompanhada do
+`SECRET_KEY`**, que mora no `.env` e não entra no backup: guardá-los no mesmo
+lugar anularia a cifra das senhas. Guarde os dois, separados, e saiba de qual
+par você tem — é para isso que o manifesto grava a impressão digital da chave, e
+é o que `backup --conferir` compara.
