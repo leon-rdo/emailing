@@ -42,10 +42,11 @@ chmod -R a+rX "$UV_PYTHON_INSTALL_DIR" "$ALVO/.venv"
 mkdir -p "$ALVO/data/.uv-cache"
 chown emailing:www-data "$ALVO/data/.uv-cache"
 
-echo "== cron de limpeza de rascunhos =="
+echo "== cron (limpeza de rascunhos + despacho de agendados) =="
 install -m 644 "$ALVO/deploy/emailing-limpeza.cron" /etc/cron.d/emailing-limpeza
-touch /var/log/emailing-limpeza.log
-chown emailing:www-data /var/log/emailing-limpeza.log
+install -m 644 "$ALVO/deploy/emailing-agendados.cron" /etc/cron.d/emailing-agendados
+touch /var/log/emailing-limpeza.log /var/log/emailing-agendados.log
+chown emailing:www-data /var/log/emailing-limpeza.log /var/log/emailing-agendados.log
 systemctl reload cron 2>/dev/null || systemctl restart cron
 
 echo "== reiniciando =="

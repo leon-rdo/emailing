@@ -192,6 +192,8 @@ th { color: var(--tinta-fraca); font-weight: 500; }
 .selo.enviado { background: var(--ok-fundo); color: var(--ok); }
 .selo.falhou { background: var(--erro-fundo); color: var(--erro); }
 .selo.enviando { background: var(--realce); color: var(--tinta-fraca); }
+.selo.agendado { background: var(--realce); color: var(--marca-escura); }
+.selo.cancelado { background: var(--fundo); color: var(--tinta-fraca); }
 
 /* ---------- histórico / prévia ---------- */
 
@@ -280,7 +282,8 @@ details > pre {
 	font-size: .9em;
 }
 
-.glossario {
+.glossario,
+.agendamento {
 	margin: 0 0 1rem;
 	padding: .75rem 1rem;
 	background: var(--realce);
@@ -288,7 +291,8 @@ details > pre {
 	border-radius: 6px;
 }
 
-.glossario summary {
+.glossario summary,
+.agendamento summary {
 	cursor: pointer;
 	font-size: .875rem;
 	font-weight: 500;

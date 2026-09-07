@@ -309,6 +309,37 @@ Path(FILE_UPLOAD_TEMP_DIR).mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------------------
+# Envio programado
+# ---------------------------------------------------------------------------
+#
+# O despachante é um `manage.py despachar_agendados` rodando por cron, não uma
+# fila — continua valendo o "sem Celery, sem broker" (docs/decisoes.md). O que
+# muda em relação ao envio pela tela é que ninguém está olhando, e é disso que
+# saem estes limites.
+
+# Teto por execução. Hostinger e Titan limitam saída por hora e por dia: um
+# lote grande de uma vez viraria uma fila de FALHOU em vez de atraso.
+AGENDADOS_MAX_POR_EXECUCAO = env_int("AGENDADOS_MAX_POR_EXECUCAO", 20)
+
+AGENDADOS_MAX_TENTATIVAS = env_int("AGENDADOS_MAX_TENTATIVAS", 3)
+# Espera antes de tentar de novo, dobrando a cada tentativa (5, 10, 20 min).
+AGENDADOS_BACKOFF_MINUTOS = env_int("AGENDADOS_BACKOFF_MINUTOS", 5)
+
+# Atraso máximo tolerado entre a hora marcada e o despacho de fato. Se o
+# servidor ficou fora do ar dois dias, disparar o acumulado ao voltar é pior do
+# que não disparar: a mensagem foi escrita para um momento que já passou. `0`
+# desliga a checagem e manda de qualquer jeito.
+AGENDADOS_TOLERANCIA_HORAS = env_int("AGENDADOS_TOLERANCIA_HORAS", 24)
+
+# Para onde avisar quando um agendamento esgota as tentativas. Vazio = não
+# avisa (o histórico registra de todo jeito, mas ninguém lê às 3h da manhã).
+AGENDADOS_AVISAR_PARA = os.environ.get("AGENDADOS_AVISAR_PARA", "").strip()
+# Alias que manda o aviso. Vazio = o alias do próprio agendamento — que pode
+# ser justamente o que está com credencial quebrada; daí a escotilha.
+AGENDADOS_AVISAR_ALIAS = os.environ.get("AGENDADOS_AVISAR_ALIAS", "").strip()
+
+
+# ---------------------------------------------------------------------------
 # Log
 # ---------------------------------------------------------------------------
 

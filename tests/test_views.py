@@ -463,3 +463,167 @@ def test_responder_pre_preenche_destinatario_original(client, logado):
     assert form.initial["para"] == "cliente@example.com"
     assert form.initial["assunto"] == "Re: Pedido"
     assert form.initial["in_reply_to"] == "<abc@leonardocosta.dev>"
+
+
+# ---------------------------------------------------------------------------
+# Agendar pela tela
+# ---------------------------------------------------------------------------
+
+
+def _dados_de_redacao(**extra):
+    base = {
+        "alias": "financeiro",
+        "para": "cliente@example.com",
+        "assunto": "Depois",
+        "corpo": "<p>Olá</p>",
+    }
+    return {**base, **extra}
+
+
+def _com_previa(client, dados):
+    """Faz a prévia e devolve os dados prontos para o POST seguinte, com o hash
+    que a prévia calculou — é o que a trava do envio compara."""
+    previa = client.post(reverse("mensagens:inicio"), {**dados, "acao": "previa"})
+    return {**dados, "hash_previa": previa.context["previa"]["hash"]}
+
+
+def test_agendar_apos_previa_poe_na_fila(client, logado):
+    from datetime import timedelta
+
+    from django.core import mail
+    from django.utils import timezone
+
+    from mensagens.models import EnvioAgendado
+
+    quando = timezone.localtime() + timedelta(days=1)
+    dados = _com_previa(client, _dados_de_redacao())
+
+    resposta = client.post(
+        reverse("mensagens:inicio"),
+        {**dados, "acao": "agendar", "enviar_em": quando.strftime("%Y-%m-%dT%H:%M")},
+    )
+
+    assert resposta.status_code == 302
+    assert resposta["Location"] == reverse("mensagens:agendados")
+    assert mail.outbox == []
+    agendado = EnvioAgendado.objects.get()
+    assert agendado.status == EnvioAgendado.Status.AGENDADO
+    assert timezone.localtime(agendado.enviar_em).strftime("%Y-%m-%dT%H:%M") == (
+        quando.strftime("%Y-%m-%dT%H:%M")
+    )
+
+
+def test_agendar_sem_previa_nao_agenda(client, logado):
+    """A mesma trava do envio: o que vai para a fila é o que foi conferido — e
+    aqui ela importa mais, porque ninguém relê a mensagem quando ela sai."""
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from mensagens.models import EnvioAgendado
+
+    quando = (timezone.localtime() + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M")
+    resposta = client.post(
+        reverse("mensagens:inicio"),
+        {**_dados_de_redacao(), "acao": "agendar", "enviar_em": quando, "hash_previa": ""},
+    )
+
+    assert resposta.status_code == 200
+    assert EnvioAgendado.objects.count() == 0
+    assert "O conteúdo mudou" in resposta.content.decode()
+
+
+def test_agendar_sem_data_avisa_e_mantem_a_previa(client, logado):
+    from mensagens.models import EnvioAgendado
+
+    dados = _com_previa(client, _dados_de_redacao())
+    resposta = client.post(reverse("mensagens:inicio"), {**dados, "acao": "agendar"})
+
+    assert resposta.status_code == 200
+    assert EnvioAgendado.objects.count() == 0
+    assert "informe a data" in resposta.content.decode().lower()
+    assert resposta.context["previa"] is not None
+
+
+def test_agendar_no_passado_avisa(client, logado):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from mensagens.models import EnvioAgendado
+
+    passado = (timezone.localtime() - timedelta(hours=2)).strftime("%Y-%m-%dT%H:%M")
+    dados = _com_previa(client, _dados_de_redacao())
+
+    resposta = client.post(
+        reverse("mensagens:inicio"), {**dados, "acao": "agendar", "enviar_em": passado}
+    )
+
+    assert EnvioAgendado.objects.count() == 0
+    assert "já passou" in resposta.content.decode()
+
+
+def test_data_meio_digitada_nao_derruba_a_previa(client, logado):
+    """A lição do `pressSequentially`, aplicada à data: "2026-09-1" é um estado
+    pelo qual toda digitação passa, e a prévia não pode morrer nele."""
+    resposta = client.post(
+        reverse("mensagens:previa_ajax"),
+        {**_dados_de_redacao(), "enviar_em": "2026-09-1"},
+    )
+    assert resposta.status_code == 200
+    assert resposta.json()["ok"] is True
+
+
+def test_data_nao_entra_no_hash_da_previa(client, logado):
+    """A data não é conteúdo: mudar a hora do agendamento não pode invalidar uma
+    prévia já conferida."""
+    sem = client.post(reverse("mensagens:previa_ajax"), _dados_de_redacao())
+    com = client.post(
+        reverse("mensagens:previa_ajax"),
+        {**_dados_de_redacao(), "enviar_em": "2026-12-25T09:00"},
+    )
+    assert sem.json()["hash"] == com.json()["hash"]
+
+
+def test_fila_lista_e_cancela(client, logado, alias_de_teste):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from mensagens.agendamento import agendar
+    from mensagens.models import EnvioAgendado
+    from mensagens.montagem import DadosRedacao
+
+    agendado = agendar(
+        alias_de_teste,
+        DadosRedacao(para=["cliente@example.com"], assunto="Na fila"),
+        timezone.now() + timedelta(days=1),
+    )
+
+    lista = client.get(reverse("mensagens:agendados"))
+    assert lista.status_code == 200
+    assert b"Na fila" in lista.content
+
+    resposta = client.post(reverse("mensagens:cancelar_agendado", args=[agendado.pk]))
+    assert resposta.status_code == 302
+    agendado.refresh_from_db()
+    assert agendado.status == EnvioAgendado.Status.CANCELADO
+
+
+def test_cancelar_exige_post(client, logado, alias_de_teste):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from mensagens.agendamento import agendar
+    from mensagens.models import EnvioAgendado
+    from mensagens.montagem import DadosRedacao
+
+    agendado = agendar(
+        alias_de_teste, DadosRedacao(para=["c@x.com"]), timezone.now() + timedelta(days=1)
+    )
+    resposta = client.get(reverse("mensagens:cancelar_agendado", args=[agendado.pk]))
+
+    assert resposta.status_code == 405
+    agendado.refresh_from_db()
+    assert agendado.status == EnvioAgendado.Status.AGENDADO

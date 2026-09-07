@@ -9,16 +9,19 @@ from django.core.files.uploadhandler import MemoryFileUploadHandler
 from django.core.paginator import Paginator
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt, csrf_protect
+from django.views.decorators.http import require_POST
 
+from .agendamento import agendar, cancelar
 from .aliases import alias_por_slug, carregar_aliases
 from .anexos import ErroAnexo, criar_token, listar_anexos, remover_anexo, salvar_anexo
 from .eml import ErroImportacaoEML, analisar_eml, normalizar_message_id, referencias_para_resposta
 from .envio import enviar_email
 from .forms import FormularioLogin, FormularioPrevia, FormularioRedacao, dados_do_formulario
 from .marcadores import GLOSSARIO
-from .models import RegistroEnvio
+from .models import EnvioAgendado, RegistroEnvio
 from .montagem import (
     calcular_hash_previa,
     emoldurar_para_previa,
@@ -147,21 +150,28 @@ def redigir(request):
     if request.method == "POST" and form.is_valid():
         acao = request.POST.get("acao")
         resultado = _previa_de(form, token)
+        # A mesma trava vale para agendar: o que vai para a fila é o que foi
+        # conferido. Um agendamento é mais perigoso nesse aspecto, não menos —
+        # ninguém vai reler a mensagem no momento em que ela sai.
+        conferido = request.POST.get("hash_previa") == resultado["hash"]
 
-        if acao == "enviar" and request.POST.get("hash_previa") == resultado["hash"]:
+        if acao in ("enviar", "agendar") and not conferido:
+            messages.warning(
+                request,
+                "O conteúdo mudou desde a última prévia. Confira a prévia atualizada "
+                "antes de enviar.",
+            )
+        elif acao == "enviar":
             registro = enviar_email(resultado["alias"], resultado["dados"], token_anexos=token)
             if registro.status == RegistroEnvio.Status.ENVIADO:
                 messages.success(request, "E-mail enviado.")
             else:
                 messages.error(request, f"Falha ao enviar: {registro.erro}")
             return redirect("mensagens:registro", pk=registro.pk)
-
-        if acao == "enviar":
-            messages.warning(
-                request,
-                "O conteúdo mudou desde a última prévia. Confira a prévia atualizada "
-                "antes de enviar.",
-            )
+        elif acao == "agendar":
+            destino = _agendar(request, form, resultado, token)
+            if destino is not None:
+                return destino
 
         previa = resultado
 
@@ -174,6 +184,64 @@ def redigir(request):
             "marcadores": GLOSSARIO,
         },
     )
+
+
+def _agendar(request, form, resultado, token: str):
+    """Põe a mensagem na fila, ou devolve `None` deixando o erro na tela.
+
+    A checagem de "já passou" mora aqui e não no campo do formulário: no campo,
+    ela recusaria também um envio imediato só porque sobrou uma data velha na
+    tela — e o campo é o mesmo para os dois botões.
+
+    Não chama `limpar_rascunho`: os anexos têm que continuar em disco até o
+    despacho. Quem garante que a limpeza diária não os leve é
+    `agendamento.tokens_pendentes()`.
+    """
+    quando = form.cleaned_data.get("enviar_em")
+    if not quando:
+        messages.error(request, "Para agendar, informe a data e a hora do envio.")
+        return None
+    if quando <= timezone.now():
+        messages.error(request, "Essa data já passou. Escolha um momento no futuro.")
+        return None
+
+    agendado = agendar(resultado["alias"], resultado["dados"], quando, token_anexos=token)
+    local = timezone.localtime(agendado.enviar_em).strftime("%d/%m/%Y às %H:%M")
+    messages.success(request, f"Agendado para {local}.")
+    return redirect("mensagens:agendados")
+
+
+def agendados(request):
+    """A fila: o que ainda vai sair, e o que já saiu ou falhou.
+
+    Os pendentes vêm inteiros (a fila de um usuário só não cresce sem limite) e
+    o resto é uma cauda curta, para achar o que falhou de madrugada.
+    """
+    pendentes = EnvioAgendado.objects.filter(
+        status=EnvioAgendado.Status.AGENDADO
+    ).select_related("alias")
+    encerrados = (
+        EnvioAgendado.objects.exclude(status=EnvioAgendado.Status.AGENDADO)
+        .select_related("alias")
+        .order_by("-enviar_em")[:25]
+    )
+    return render(
+        request, "mensagens/agendados.html",
+        {"pendentes": pendentes, "encerrados": encerrados},
+    )
+
+
+@require_POST
+def cancelar_agendado(request, pk):
+    if cancelar(pk):
+        messages.success(request, f"Agendamento #{pk} cancelado.")
+    else:
+        messages.warning(
+            request,
+            f"O agendamento #{pk} já não estava esperando — pode ter sido despachado "
+            "ou cancelado antes deste clique.",
+        )
+    return redirect("mensagens:agendados")
 
 
 def previa_ajax(request):

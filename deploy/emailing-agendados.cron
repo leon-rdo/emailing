@@ -1,0 +1,14 @@
+# Instalar em /etc/cron.d/emailing-agendados (root:root, modo 644).
+# Despacha os envios programados cuja hora chegou.
+#
+# De minuto em minuto porque a precisão que se espera de um agendamento é o
+# minuto marcado. O comando é silencioso quando não há nada vencido, então isto
+# não enche o log.
+#
+# `flock -n` é o cinto contra execuções sobrepostas; a corda é a reivindicação
+# atômica em mensagens/agendamento.py, que é o que de fato impede envio duplo.
+# Aqui não há POST-redirect-GET nem ninguém olhando a tela.
+#
+# Python do venv direto, e não `uv run`: por minuto, revalidar o lockfile a cada
+# vez é desperdício, e assim não depende de HOME nem de cache graváveis.
+* * * * * emailing flock -n /var/www/emailing/data/.agendados.lock /var/www/emailing/.venv/bin/python /var/www/emailing/manage.py despachar_agendados >> /var/log/emailing-agendados.log 2>&1

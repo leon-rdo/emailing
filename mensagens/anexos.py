@@ -6,6 +6,10 @@ processa `request.FILES` antes de decidir o que mostrar (prévia ou, na Etapa
 anexação e carregado de volta pelo formulário a cada POST seguinte (campo
 `rascunho`, em `forms.FormularioRedacao`) — os arquivos daquele token ficam em
 `RASCUNHOS_DIR/<token>/`, nomeados `<id>__<nome-original>`.
+
+E há uma armadilha aqui: mensagem **agendada** guarda os anexos neste mesmo
+lugar, por um prazo que pode passar do TTL da limpeza. Ver
+`limpar_rascunhos_expirados`.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ import re
 import secrets
 import shutil
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -155,22 +160,52 @@ def ler_anexos(token: str) -> list[Anexo]:
     ]
 
 
+def transferir_rascunho(token: str) -> str:
+    """Move os anexos para um token novo e devolve o novo. `""` se não havia nada.
+
+    Serve para um agendamento tomar posse dos arquivos. Sem isso, dois
+    agendamentos feitos a partir do mesmo rascunho (um "voltar" no navegador e
+    reenviar o POST) compartilhariam a pasta, e o primeiro despacho — que limpa
+    o rascunho ao concluir — levaria os anexos do segundo, que sairia **sem
+    anexo, em silêncio**.
+
+    Preferimos tornar a invariante verdadeira por construção ("cada
+    agendamento é dono dos seus arquivos") a checar o caso na hora de apagar.
+    """
+    if not token:
+        return ""
+    origem = _pasta(token)
+    if not origem.is_dir():
+        return ""
+    novo = criar_token()
+    origem.rename(_pasta(novo))
+    return novo
+
+
 def limpar_rascunho(token: str) -> None:
     """Apaga a pasta inteira do rascunho — chamado depois de um envio bem-sucedido."""
     if token:
         shutil.rmtree(_pasta(token), ignore_errors=True)
 
 
-def limpar_rascunhos_expirados(ttl_dias: int) -> int:
-    """Apaga rascunhos abandonados. Usado pelo comando `limpar_rascunhos`."""
+def limpar_rascunhos_expirados(ttl_dias: int, tokens_protegidos: Iterable[str] = ()) -> int:
+    """Apaga rascunhos abandonados. Usado pelo comando `limpar_rascunhos`.
+
+    `tokens_protegidos` **não é refinamento**: mensagem agendada guarda os
+    anexos aqui até a hora de sair, e um agendamento para daqui a 10 dias
+    passaria do TTL de 7. Pior: `ler_anexos()` devolve `[]` para pasta
+    inexistente, então a mensagem sairia **sem os anexos, em silêncio**, em vez
+    de falhar. Quem passa a lista é o comando `limpar_rascunhos`.
+    """
     raiz = Path(settings.RASCUNHOS_DIR)
     if not raiz.is_dir():
         return 0
 
+    protegidos = set(tokens_protegidos)
     limite = time.time() - ttl_dias * 86400
     apagados = 0
     for pasta in raiz.iterdir():
-        if not pasta.is_dir():
+        if not pasta.is_dir() or pasta.name in protegidos:
             continue
         arquivos = list(pasta.iterdir())
         referencia = max((a.stat().st_mtime for a in arquivos), default=pasta.stat().st_mtime)

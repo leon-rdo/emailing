@@ -228,3 +228,92 @@ class RegistroEnvio(models.Model):
     @property
     def selo_css(self) -> str:
         return {"enviado": "enviado", "falhou": "falhou"}.get(self.status, "enviando")
+
+
+class EnvioAgendado(models.Model):
+    """Uma mensagem já conferida, esperando a hora de sair.
+
+    Guarda os mesmos campos de `DadosRedacao` (ver `montagem.py`), e guarda o
+    corpo **como saiu do editor** — HTML bruto, não sanitizado, com os
+    marcadores `{{ … }}` intactos. Não é desleixo, são duas garantias:
+
+    - o despacho chama `enviar_email()` exatamente como a tela chama, então
+      sanitização, assinatura e montagem acontecem por um caminho só. Guardar o
+      HTML já pronto seria uma segunda versão da verdade — a mesma razão pela
+      qual a prévia não persiste rascunho (ver `views.redigir`);
+    - `{{ data }}` e `{{ hora }}` expandem no **despacho**, que é o que se quer
+      de um agendamento: a hora que interessa é a da entrega, não a de quem
+      escreveu. Isso cai pronto da separação autoral/final que já existia.
+
+    Os anexos continuam onde os do navegador ficam (`RASCUNHOS_DIR/<token>/`),
+    e por isso `limpar_rascunhos` precisa saber destes tokens — ver
+    `anexos.limpar_rascunhos_expirados`.
+    """
+
+    class Status(models.TextChoices):
+        AGENDADO = "agendado", "Agendado"
+        ENVIANDO = "enviando", "Enviando"
+        ENVIADO = "enviado", "Enviado"
+        FALHOU = "falhou", "Falhou"
+        CANCELADO = "cancelado", "Cancelado"
+
+    criado_em = models.DateTimeField("criado em", auto_now_add=True)
+    enviar_em = models.DateTimeField("enviar em", db_index=True)
+
+    # FK, não o slug como no `RegistroEnvio`: aquele é log histórico e precisa
+    # sobreviver ao alias; este é uma promessa futura, e apagar o alias de uma
+    # mensagem que ainda vai sair tem que ser barrado, não registrado.
+    alias = models.ForeignKey(
+        Alias, on_delete=models.PROTECT, related_name="agendamentos", verbose_name="alias"
+    )
+
+    # Listas, não texto separado por vírgula: o que entrou tem que voltar
+    # idêntico no despacho, sem passar por um segundo parser de endereço.
+    para = models.JSONField("para", default=list)
+    cc = models.JSONField("cc", default=list, blank=True)
+    cco = models.JSONField("cco", default=list, blank=True)
+    assunto = models.CharField("assunto", max_length=200, blank=True)
+
+    corpo_html = models.TextField("corpo (HTML do editor)", blank=True)
+    citacao_html = models.TextField("citação", blank=True)
+    in_reply_to = models.CharField("in_reply_to", max_length=255, blank=True)
+    referencias = models.TextField("referências", blank=True)
+    token_anexos = models.CharField("token de anexos", max_length=64, blank=True)
+
+    status = models.CharField(
+        "status", max_length=10, choices=Status.choices, default=Status.AGENDADO
+    )
+    tentativas = models.PositiveIntegerField("tentativas", default=0)
+    ultima_tentativa_em = models.DateTimeField("última tentativa", null=True, blank=True)
+    erro = models.TextField("erro", blank=True)
+
+    registro = models.ForeignKey(
+        RegistroEnvio, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name="agendamento", verbose_name="registro do envio",
+    )
+
+    class Meta:
+        ordering = ["enviar_em"]
+        verbose_name = "envio agendado"
+        verbose_name_plural = "envios agendados"
+        indexes = [models.Index(fields=["status", "enviar_em"], name="agendado_status_quando")]
+
+    def __str__(self):
+        quando = self.enviar_em.strftime("%d/%m/%Y %H:%M")
+        return f"{self.assunto or '(sem assunto)'} → {self.destinatarios} em {quando}"
+
+    @property
+    def destinatarios(self) -> str:
+        return ", ".join(self.para)
+
+    @property
+    def pendente(self) -> bool:
+        return self.status == self.Status.AGENDADO
+
+    @property
+    def selo_css(self) -> str:
+        return {
+            self.Status.ENVIADO: "enviado",
+            self.Status.FALHOU: "falhou",
+            self.Status.CANCELADO: "cancelado",
+        }.get(self.status, "agendado")

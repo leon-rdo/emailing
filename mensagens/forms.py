@@ -11,6 +11,16 @@ from django_otp.forms import OTPAuthenticationForm
 
 from .montagem import DadosRedacao
 
+# O `datetime-local` do navegador manda "2026-09-10T09:00", que não está nos
+# DATETIME_INPUT_FORMATS do locale pt-br.
+FORMATOS_ENVIAR_EM = [
+    "%Y-%m-%dT%H:%M",
+    "%Y-%m-%dT%H:%M:%S",
+    "%Y-%m-%d %H:%M",
+    "%Y-%m-%d %H:%M:%S",
+    "%d/%m/%Y %H:%M",
+]
+
 
 def dados_do_formulario(form) -> DadosRedacao:
     """`DadosRedacao` a partir de um formulário já validado.
@@ -137,6 +147,17 @@ class FormularioRedacao(forms.Form):
     corpo = forms.CharField(label="Mensagem", required=False, widget=forms.HiddenInput)
     novo_anexo = CampoMultiploArquivo(label="Anexar arquivo")
 
+    # Opcional mesmo no envio: o botão "Enviar" ignora e o "Agendar" exige. A
+    # checagem de "já passou" fica na view, que é quem sabe qual botão foi
+    # clicado — no campo, ela recusaria o formulário de um envio imediato só
+    # porque sobrou uma data velha na tela.
+    enviar_em = forms.DateTimeField(
+        label="Enviar em", required=False, input_formats=FORMATOS_ENVIAR_EM,
+        widget=forms.DateTimeInput(
+            attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
+        ),
+    )
+
     # Passthrough entre prévia e envio — preenchidos por código, não digitados.
     rascunho = forms.CharField(required=False, widget=forms.HiddenInput)
     in_reply_to = forms.CharField(required=False, widget=forms.HiddenInput)
@@ -177,3 +198,8 @@ class FormularioPrevia(FormularioRedacao):
         for campo in ("para", "cc", "cco"):
             self.fields[campo].minimo_um = False
             self.fields[campo].tolerante = True
+        # Mesmo motivo, aplicado à data: "10/09/2026 0" é um estado pelo qual
+        # toda digitação de data passa, e um erro de campo aqui devolveria
+        # `ok:false` e congelaria a prévia. A data não é conteúdo — não entra no
+        # HTML nem no hash — então a prévia simplesmente não a conhece.
+        del self.fields["enviar_em"]

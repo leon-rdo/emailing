@@ -13,7 +13,7 @@ from django import forms
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import Alias, ContaEmail, RegistroEnvio
+from .models import Alias, ContaEmail, EnvioAgendado, RegistroEnvio
 
 admin.site.site_header = "Emailing"
 admin.site.site_title = "Emailing"
@@ -24,6 +24,8 @@ _COR_SELO = {
     RegistroEnvio.Status.ENVIADO: "#1a7f47",
     RegistroEnvio.Status.FALHOU: "#b42318",
     RegistroEnvio.Status.ENVIANDO: "#6b7280",
+    EnvioAgendado.Status.AGENDADO: "#24578f",
+    EnvioAgendado.Status.CANCELADO: "#6b7280",
 }
 
 
@@ -126,6 +128,52 @@ class RegistroEnvioAdmin(admin.ModelAdmin):
     @admin.display(description="para")
     def para_resumido(self, obj):
         return obj.para if len(obj.para) <= 60 else obj.para[:57] + "…"
+
+    @admin.display(description="status", ordering="status")
+    def selo(self, obj):
+        cor = _COR_SELO.get(obj.status, "#6b7280")
+        return format_html(
+            '<span style="color:{}; font-weight:600;">{}</span>', cor, obj.get_status_display()
+        )
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(EnvioAgendado)
+class EnvioAgendadoAdmin(admin.ModelAdmin):
+    """Só leitura, inclusive para apagar.
+
+    Editar o corpo aqui passaria por cima da prévia — e a promessa do
+    agendamento é justamente que sai o que foi conferido. Cancelar tem uma porta
+    só, `/agendados/`, porque é a que também apaga os anexos que ficariam
+    órfãos (ver `agendamento.cancelar`).
+    """
+
+    list_display = ("enviar_em", "alias", "para_resumido", "assunto", "selo", "tentativas")
+    list_filter = ("status", "alias", "enviar_em")
+    search_fields = ("assunto", "erro")
+    date_hierarchy = "enviar_em"
+    readonly_fields = [f.name for f in EnvioAgendado._meta.fields]
+
+    fieldsets = (
+        (None, {"fields": ("status", "enviar_em", "tentativas", "ultima_tentativa_em", "erro")}),
+        ("Envelope", {"fields": ("alias", "para", "cc", "cco", "assunto")}),
+        ("Cabeçalhos", {"fields": ("in_reply_to", "referencias")}),
+        ("Conteúdo", {"fields": ("corpo_html", "citacao_html", "token_anexos")}),
+        ("Resultado", {"fields": ("criado_em", "registro")}),
+    )
+
+    @admin.display(description="para")
+    def para_resumido(self, obj):
+        texto = obj.destinatarios
+        return texto if len(texto) <= 60 else texto[:57] + "…"
 
     @admin.display(description="status", ordering="status")
     def selo(self, obj):

@@ -1,0 +1,89 @@
+{% extends "mensagens/base.html" %}
+
+{% block titulo %}Agendados — Emailing{% endblock %}
+
+{% block conteudo %}
+<div class="cartao largo">
+	<h1>Envios agendados</h1>
+	<p class="nota">
+		Quem despacha é o cron, de minuto em minuto. O corpo é sanitizado e os marcadores
+		resolvidos na hora da entrega — o que está guardado aqui é a mensagem como você a
+		escreveu.
+	</p>
+
+	<h2>Esperando</h2>
+	{% if pendentes %}
+	<div class="tabela-rolavel">
+		<table>
+			<thead>
+				<tr>
+					<th>Sai em</th>
+					<th>Alias</th>
+					<th>Para</th>
+					<th>Assunto</th>
+					<th>Tentativas</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in pendentes %}
+				<tr>
+					<td>{{ item.enviar_em|date:"d/m/Y H:i" }}</td>
+					<td><code>{{ item.alias.slug }}</code></td>
+					<td>{{ item.destinatarios|truncatechars:50 }}</td>
+					<td>{{ item.assunto|default:"(sem assunto)"|truncatechars:50 }}</td>
+					<td>
+						{% if item.tentativas %}
+						<span class="selo falhou" title="{{ item.erro }}">{{ item.tentativas }}ª falhou</span>
+						{% else %}—{% endif %}
+					</td>
+					<td>
+						<form method="post" action="{% url 'mensagens:cancelar_agendado' item.pk %}" class="embutido">
+							{% csrf_token %}
+							<button type="submit" class="link">cancelar</button>
+						</form>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	{% else %}
+	<p class="nota">Nada na fila. <a href="{% url 'mensagens:inicio' %}">Redigir</a> e usar “Agendar”.</p>
+	{% endif %}
+
+	{% if encerrados %}
+	<h2>Encerrados</h2>
+	<div class="tabela-rolavel">
+		<table>
+			<thead>
+				<tr>
+					<th>Era para sair</th>
+					<th>Alias</th>
+					<th>Para</th>
+					<th>Assunto</th>
+					<th>Status</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for item in encerrados %}
+				<tr>
+					<td>{{ item.enviar_em|date:"d/m/Y H:i" }}</td>
+					<td><code>{{ item.alias.slug }}</code></td>
+					<td>{{ item.destinatarios|truncatechars:40 }}</td>
+					<td>{{ item.assunto|default:"(sem assunto)"|truncatechars:40 }}</td>
+					<td><span class="selo {{ item.selo_css }}" {% if item.erro %}title="{{ item.erro }}"{% endif %}>{{ item.get_status_display }}</span></td>
+					<td>
+						{% if item.registro_id %}
+						<a href="{% url 'mensagens:registro' item.registro_id %}">ver envio</a>
+						{% endif %}
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	{% endif %}
+</div>
+{% endblock %}

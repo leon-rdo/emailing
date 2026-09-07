@@ -147,9 +147,25 @@
 			</details>
 		</div>
 
+		<details class="agendamento" {% if form.enviar_em.value %}open{% endif %}>
+			<summary>Agendar em vez de enviar agora</summary>
+			<p class="nota">
+				Sai na hora marcada, pelo mesmo caminho do envio imediato. Os marcadores
+				(<code>&#123;&#123; hora &#125;&#125;</code> e companhia) são resolvidos no
+				momento da entrega, não agora — é o que se espera de um agendamento.
+			</p>
+			<p class="campo">
+				<label for="{{ form.enviar_em.id_for_label }}">Enviar em</label>
+				{{ form.enviar_em }}
+				<small>A fila fica em <a href="{% url 'mensagens:agendados' %}">Agendados</a>, e dá para cancelar até a hora de sair.</small>
+				{% for erro in form.enviar_em.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+			</p>
+		</details>
+
 		<div class="acoes">
 			<button type="submit" name="acao" value="previa" class="botao">Pré-visualizar</button>
 			<button type="submit" name="acao" value="enviar" class="primario botao-enviar" {% if not previa %}hidden{% endif %}>Enviar</button>
+			<button type="submit" name="acao" value="agendar" class="botao botao-enviar" {% if not previa %}hidden{% endif %}>Agendar</button>
 		</div>
 	</form>
 </div>
@@ -164,12 +180,12 @@
 	var form = document.querySelector("form.form-redacao");
 	if (!form) return;
 
-	// Impede um clique duplo em "Enviar" disparar dois envios antes do
+	// Impede um clique duplo em "Enviar"/"Agendar" disparar dois envios antes do
 	// redirecionamento — não é o que protege contra F5 (isso é o próprio
 	// POST-redirect-GET), só a corrida de dois cliques quase simultâneos.
 	form.addEventListener("submit", function (evento) {
 		var botao = evento.submitter;
-		if (botao && botao.name === "acao" && botao.value === "enviar") {
+		if (botao && botao.name === "acao" && (botao.value === "enviar" || botao.value === "agendar")) {
 			setTimeout(function () { botao.disabled = true; }, 0);
 		}
 	});
@@ -182,7 +198,7 @@
 	var status = form.querySelector(".previa-status");
 	var textoPre = form.querySelector(".previa-texto");
 	var hashInput = form.querySelector('input[name="hash_previa"]');
-	var botaoEnviar = form.querySelector(".botao-enviar");
+	var botoesEnvio = form.querySelectorAll(".botao-enviar");
 	var sequencia = 0;
 	var timer = null;
 
@@ -202,7 +218,7 @@
 				textoPre.textContent = resultado.texto;
 				hashInput.value = resultado.hash;
 				painel.hidden = false;
-				botaoEnviar.hidden = false;
+				botoesEnvio.forEach(function (botao) { botao.hidden = false; });
 				status.textContent = "";
 			})
 			.catch(function () { status.textContent = ""; });
