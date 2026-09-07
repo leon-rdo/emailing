@@ -66,26 +66,39 @@ def _pasta(token: str) -> Path:
     return Path(settings.RASCUNHOS_DIR) / token
 
 
-def salvar_anexo(token: str, arquivo: UploadedFile) -> AnexoRascunho:
-    """Valida e grava um arquivo enviado. Levanta `ErroAnexo` com a explicação."""
-    nome = _nome_seguro(arquivo.name or "arquivo")
+def _validar(nome: str, tamanho: int, existentes: list[AnexoRascunho]) -> None:
+    """As regras que valem para QUALQUER origem de anexo.
+
+    Ficam num lugar só de propósito: se uma segunda origem aceitasse o que o
+    formulário recusa (ou o contrário), a divergência apareceria como
+    "funciona aqui e não ali" — um relatório de bug para você mesmo.
+    """
     extensao = Path(nome).suffix.lstrip(".").lower()
     if extensao in settings.ANEXOS_EXTENSOES_BLOQUEADAS:
         raise ErroAnexo(f"Tipo de arquivo não permitido: .{extensao} ({nome}).")
-    if arquivo.size > settings.ANEXO_MAX_BYTES:
+    if tamanho > settings.ANEXO_MAX_BYTES:
         raise ErroAnexo(
-            f"{nome} tem {_tamanho_legivel(arquivo.size)}, acima do limite de "
+            f"{nome} tem {_tamanho_legivel(tamanho)}, acima do limite de "
             f"{_tamanho_legivel(settings.ANEXO_MAX_BYTES)} por arquivo."
         )
-
-    existentes = listar_anexos(token)
     if len(existentes) >= settings.ANEXOS_MAX_ARQUIVOS:
         raise ErroAnexo(f"Limite de {settings.ANEXOS_MAX_ARQUIVOS} anexos por mensagem atingido.")
-    if sum(a.tamanho for a in existentes) + arquivo.size > settings.ANEXOS_MAX_TOTAL_BYTES:
+    if sum(a.tamanho for a in existentes) + tamanho > settings.ANEXOS_MAX_TOTAL_BYTES:
         raise ErroAnexo(
             f"Anexar {nome} passaria do limite de "
             f"{_tamanho_legivel(settings.ANEXOS_MAX_TOTAL_BYTES)} somando todos os anexos."
         )
+
+
+def _tipo_de(nome: str) -> str:
+    tipo, _ = mimetypes.guess_type(nome)
+    return tipo or "application/octet-stream"
+
+
+def salvar_anexo(token: str, arquivo: UploadedFile) -> AnexoRascunho:
+    """Valida e grava um arquivo enviado. Levanta `ErroAnexo` com a explicação."""
+    nome = _nome_seguro(arquivo.name or "arquivo")
+    _validar(nome, arquivo.size, listar_anexos(token))
 
     pasta = _pasta(token)
     pasta.mkdir(parents=True, exist_ok=True)
@@ -95,10 +108,7 @@ def salvar_anexo(token: str, arquivo: UploadedFile) -> AnexoRascunho:
         for pedaco in arquivo.chunks():
             saida.write(pedaco)
 
-    tipo, _ = mimetypes.guess_type(nome)
-    return AnexoRascunho(
-        id=id_, nome=nome, tamanho=arquivo.size, tipo=tipo or "application/octet-stream"
-    )
+    return AnexoRascunho(id=id_, nome=nome, tamanho=arquivo.size, tipo=_tipo_de(nome))
 
 
 def listar_anexos(token: str) -> list[AnexoRascunho]:
@@ -112,11 +122,9 @@ def listar_anexos(token: str) -> list[AnexoRascunho]:
         id_, separador, nome = caminho.name.partition("__")
         if not separador:
             continue
-        tipo, _ = mimetypes.guess_type(nome)
         itens.append(
             AnexoRascunho(
-                id=id_, nome=nome, tamanho=caminho.stat().st_size,
-                tipo=tipo or "application/octet-stream",
+                id=id_, nome=nome, tamanho=caminho.stat().st_size, tipo=_tipo_de(nome)
             )
         )
     return itens
