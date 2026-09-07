@@ -140,6 +140,52 @@ O botão Enviar só existe depois de uma prévia, e só envia se nada mudou desd
 então (corpo, anexos, destinatário ou assunto) — editar algo depois de
 pré-visualizar volta para uma prévia atualizada em vez de mandar sem conferir.
 
+### Agendar
+
+A caixa *Agendar em vez de enviar agora*, na tela de redação, pede data e hora e
+põe a mensagem numa fila em `/agendados/`, de onde dá para cancelar até o
+momento de sair. Vale a mesma trava do envio: só vai para a fila o que foi
+pré-visualizado.
+
+Quem despacha é um cron de minuto em minuto — não há fila nem broker. A
+mensagem é guardada **como você escreveu**: sanitização e marcadores acontecem
+na hora da entrega, então `{{ hora }}` num agendamento significa a hora em que
+a mensagem sai, que é o que se espera.
+
+Se um envio agendado falhar, ele volta para a fila com espera crescente (5, 10,
+20 min). Esgotadas as tentativas, vira `Falhou` com o erro à vista — e manda um
+aviso para `AGENDADOS_AVISAR_PARA`, se você tiver preenchido. Vale preencher:
+ninguém lê o histórico às 3h da manhã.
+
+### Da linha de comando (e para agentes)
+
+Não existe API HTTP de envio, de propósito. Quem envia de fora da tela usa
+`manage.py enviar`, autenticado pela chave ssh:
+
+```bash
+# descobrir os aliases, em JSON
+uv run manage.py verificar_config --json
+
+# conferir o que sairia, sem enviar nada
+uv run manage.py enviar --alias financeiro --para cliente@exemplo.com     --assunto "Proposta" --corpo-arquivo corpo.html --conferir
+
+# enviar (ou --em "2026-09-10 09:00" para agendar)
+uv run manage.py enviar --alias financeiro --para cliente@exemplo.com     --assunto "Proposta" --corpo-arquivo corpo.html --anexo proposta.pdf --json
+```
+
+O corpo vem de arquivo ou do stdin, nunca por argumento: `argv` aparece no `ps`
+e no histórico do shell. A validação é a mesma da tela — endereço, alias,
+limites de anexo e de destinatários —, e tudo entra no mesmo `/historico/`.
+
+Em produção há o atalho `emailing`, instalado pelo `implantar.sh`:
+
+```bash
+ssh leonardo_contabo 'emailing verificar_config --json'
+```
+
+O repositório traz `.claude/skills/enviar-email/`, que ensina essa sequência ao
+Claude Code — foi para isso que o comando ganhou `--conferir` e `--json`.
+
 ### Marcadores
 
 Escreva `{{ data }}` no corpo e ele vira a data no momento do envio. A lista
@@ -162,14 +208,13 @@ Diagnóstico e testes manuais:
 
 ```bash
 uv run manage.py testar_smtp financeiro --para voce@leonardocosta.dev
-uv run manage.py limpar_rascunhos          # apaga anexos de rascunhos abandonados
+uv run manage.py limpar_rascunhos            # apaga anexos de rascunhos abandonados
+uv run manage.py despachar_agendados --conferir   # o que a fila mandaria agora
 ```
 
-Em produção, `limpar_rascunhos` vale um `cron` — não há limpeza automática:
-
-```cron
-0 4 * * * cd /var/www/emailing && /usr/local/bin/uv run --no-dev manage.py limpar_rascunhos
-```
+Em produção os dois cron ficam instalados pelo `implantar.sh`: `limpar_rascunhos`
+diário às 4h e `despachar_agendados` de minuto em minuto. Ver
+[docs/operacao.md](docs/operacao.md).
 
 ## Entregabilidade: o que precisa estar no DNS
 

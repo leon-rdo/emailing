@@ -18,14 +18,15 @@ Trix / textarea HTML bruto
    POST /  (acao=enviar)  ────────►  FormularioRedacao (estrito)
                                      _previa_de() ─┘
                                           │ hash confere?
-                                          ▼
-                                     enviar_email()
-                                          │
-                                     RegistroEnvio (ENVIANDO)
-                                          │
-                                     SMTP da conta do alias
-                                          │
-                                     RegistroEnvio (ENVIADO/FALHOU)
+                            ┌─────────────┴─────────────┐
+                            ▼                           ▼
+                       enviar_email()            EnvioAgendado
+                            │                     (acao=agendar)
+                       RegistroEnvio (ENVIANDO)         │
+                            │                      cron, 1 min
+                       SMTP da conta do alias           │
+                            │                           │
+                       RegistroEnvio (ENVIADO/FALHOU) ◄──┘
 ```
 
 O ponto central: **prévia e envio passam pela mesma função**. A prévia não é
@@ -118,6 +119,61 @@ SMTP vira `FALHOU` com o erro guardado, visível no histórico.
 diferentes, fixar um domínio na inicialização estaria errado para todas as
 outras.
 
+## Duas outras portas para o mesmo envio
+
+`enviar_email()` tem três chamadores, e o desenho é que os três compartilhem
+tudo o que importa — sanitização, assinatura, montagem e `RegistroEnvio`:
+
+```
+tela (views.redigir) ─────────────┐
+manage.py enviar ─────────────────┼──► enviar_email() ──► RegistroEnvio ──► SMTP
+despachar_agendados (cron) ───────┘
+```
+
+### `manage.py enviar` — o operador e os agentes
+
+A porta de quem não está na tela: o dono por ssh, ou um agente com acesso ao
+servidor. Autentica pela chave ssh, e não por token HTTP — o porquê está em
+[decisoes.md](decisoes.md#cli).
+
+Não tem validação própria: monta um `FormularioRedacao` com o que veio nos
+argumentos, então endereço, limite de destinatários, alias e formato de data são
+julgados pelo mesmo código da tela. `--conferir` é a prévia sem tela, e funciona
+pelo mesmo motivo que a prévia funciona: `montar_email()` é pura.
+
+O que ele **não** tem é a trava de `hash_previa` — no terminal não existe o
+intervalo humano que ela protege.
+
+### `despachar_agendados` — o cron
+
+```
+cron (1 min) → flock → despachar_pendentes(limite)
+                          │
+                          ├─ SELECT status=agendado AND enviar_em <= agora
+                          │
+                          └─ para cada, em série:
+                               reivindicar()  ── UPDATE … WHERE status='agendado'
+                                   │ rowcount == 1 → é meu
+                                   ▼
+                               despachar_um()
+                                   ├─ alias/conta inativo → FALHOU
+                                   ├─ atraso > tolerância  → FALHOU
+                                   └─ enviar_email()
+                                        ├─ ENVIADO  → status=enviado
+                                        ├─ falhou, tem tentativa → volta para
+                                        │    agendado com enviar_em + backoff
+                                        └─ falhou, esgotou → FALHOU + aviso
+```
+
+Três coisas existem aqui e não no caminho da tela, todas pela mesma razão —
+**ninguém está olhando**: a reivindicação atômica (não há POST-redirect-GET nem
+dedo no botão), a retentativa com espera crescente, e a tolerância de atraso
+(ver [decisoes.md](decisoes.md#tolerancia)).
+
+O `EnvioAgendado` guarda o `DadosRedacao` **como veio do editor**, cru. Por
+isso o despacho sanitiza e expande marcador no momento de sair — e é isso que
+faz `{{ hora }}` num agendamento significar a hora da entrega.
+
 ## Anexos (`anexos.py`)
 
 Não existe rota de upload separada: qualquer POST da tela de redação processa
@@ -128,6 +184,17 @@ token opaco (campo oculto `rascunho`), e os arquivos daquele token vivem em
 O arquivo é o único pedaço de estado que não cabe de volta num campo oculto do
 formulário — daí o disco. Sobrevive entre prévias até o envio, e
 `limpar_rascunhos` (cron diário) apaga os abandonados.
+
+A linha de comando entra pela mesma pasta: `guardar_caminhos()` copia arquivos
+do disco local para um token novo, e a partir daí o rascunho é indistinguível de
+um vindo do navegador — é o que permite agendar com anexo sem um segundo caminho
+de código. As regras de tamanho e extensão vivem em `_validar()`, chamado pelas
+duas origens de propósito.
+
+**A limpeza precisa conhecer a fila de agendados.** Anexo de mensagem agendada
+tem que sobreviver ao TTL, e uma pasta que desaparece faz `ler_anexos()`
+devolver `[]` — a mensagem sairia sem anexo, em silêncio. Ver
+[decisoes.md](decisoes.md#anexos-agendados).
 
 ## Resposta a threads (`eml.py`)
 

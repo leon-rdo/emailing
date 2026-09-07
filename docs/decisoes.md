@@ -126,6 +126,136 @@ o que entra no hash, é o HTML puro. Há teste garantindo.
 
 ---
 
+## Automação e envio programado
+
+### Envio fora da tela é comando de `manage.py`, não API HTTP {#cli}
+
+**Alternativa:** um endpoint autenticado por token (e, sobre ele, um servidor
+MCP), para o Claude Code e afins mandarem e-mail.
+**Por que não:** o app é fechado por construção —
+`LoginRequiredMiddleware`, TOTP obrigatório, `SameSite=Strict`. Abrir uma porta
+programática custa isentar a rota de três middlewares, um modelo de token e
+rate limit próprio, e o resultado é um endpoint na internet capaz de enviar
+como estes domínios. Se o token vazasse seria um relay aberto **com DMARC
+alinhado** — o pior cenário possível deste projeto.
+
+O `manage.py enviar` resolve o mesmo problema autenticando pela **chave ssh**,
+sem nenhuma superfície nova, e ainda passa pelo mesmo `RegistroEnvio`: uma
+trilha de auditoria só, independente de quem redigiu.
+
+MCP entra na conversa só se um dia o cliente não for o terminal. Aí a forma
+importa: stdio local fazendo shell-out para o ssh é aceitável; MCP remoto por
+HTTP traz de volta exatamente o endpoint recusado acima.
+
+### A linha de comando não tem trava de `hash_previa`
+
+**Alternativa:** exigir um `--hash` conferido, por simetria com a tela.
+**Por que não:** na tela a trava protege o intervalo humano entre
+pré-visualizar e clicar, no qual o conteúdo pode mudar. No terminal é um
+processo e uma entrada, sem intervalo — a trava não protegeria de nada, só
+pediria dois comandos onde um basta. Quem quer conferir usa `--conferir`, que
+imprime o que sairia e não envia.
+
+### O corpo não entra por argumento
+
+`--corpo-arquivo` ou stdin, nunca `--corpo "<p>…</p>"`. `argv` aparece no `ps`
+de qualquer outro usuário da máquina — e esta VPS roda outros serviços — e vai
+para o histórico do shell.
+
+### A CLI não tem validação própria
+
+Endereços, limite de destinatários, escolha de alias, formato de data e limites
+de anexo saem todos do `FormularioRedacao` e do `anexos._validar`, os mesmos da
+tela. Duas validações divergem, e o sintoma seria "funciona no navegador e não
+no terminal" — um relatório de bug para você mesmo.
+
+A única tolerância que a CLI **não** herda da prévia é descartar endereço
+inválido em silêncio: na tela isso existe porque vem outra tecla atrás; no
+terminal não vem nada atrás. Já "não exigir destinatário para conferir"
+continua valendo, e pelo mesmo motivo de sempre.
+
+### Despacho por cron, ainda sem Celery
+
+**Alternativa:** a fila que o "sem Celery, sem broker" já recusou.
+**Por que não:** o mesmo motivo, e agora com menos desculpa: já havia cron
+instalado pelo `implantar.sh`. `despachar_agendados` roda de minuto em minuto,
+chamando o Python do venv direto (não `uv run`: por minuto, revalidar o
+lockfile é desperdício).
+
+### Aqui a trava de concorrência é obrigatória {#trava}
+
+A decisão de **não** travar duplo envio se apoia em duas coisas que o cron não
+tem: POST-redirect-GET e um dedo humano no botão. Duas execuções sobrepostas
+mandariam a mesma mensagem duas vezes, sem ninguém para notar.
+
+`agendamento.reivindicar()` faz `UPDATE … WHERE status='agendado'` e confere o
+`rowcount`: dono é quem trocou a linha. O `flock` na linha do cron é o cinto; a
+corda é essa. **Não remova nenhum dos dois** achando que o outro basta — o
+flock não protege contra uma execução manual em paralelo, e a reivindicação não
+evita dois processos brigando pelo mesmo SQLite.
+
+### O agendamento guarda o corpo cru do editor
+
+**Alternativa:** guardar o HTML final, já sanitizado e com marcador expandido.
+**Por que não:** seria uma segunda versão da verdade, a mesma razão pela qual a
+prévia não persiste rascunho. Guardando o `DadosRedacao` como ele chegou, o
+despacho chama `enviar_email()` exatamente como a tela chama.
+
+E sai um bônus de graça: `{{ data }}` e `{{ hora }}` expandem **no despacho**,
+que é o que se quer de um agendamento — a hora que interessa é a da entrega.
+Isso cai pronto da separação autoral/final que já existia em `montagem.py`.
+
+### Cada tentativa deixa o seu `RegistroEnvio`
+
+**Alternativa:** um registro por agendamento, atualizado a cada tentativa.
+**Por que não:** `RegistroEnvio` é log de *tentativas* — é o que o
+`status=ENVIANDO` gravado antes da rede sempre significou. Três tentativas
+foram três tentativas, e o histórico tem que contar isso.
+
+### Atraso demais não envia {#tolerancia}
+
+Se o servidor ficou fora do ar dois dias, disparar o acumulado ao voltar é pior
+do que não disparar: a mensagem foi escrita para um momento que já passou.
+Acima de `AGENDADOS_TOLERANCIA_HORAS` (24 por padrão) o agendamento vira
+`FALHOU` com a explicação, e a decisão de reenviar volta a ser humana. `0`
+desliga.
+
+### A limpeza de rascunhos precisa conhecer a fila {#anexos-agendados}
+
+Não é refinamento, é a armadilha central do agendamento. Os anexos de uma
+mensagem agendada moram onde os do navegador moram, e a limpeza diária apaga
+pasta com mtime acima de `RASCUNHOS_TTL_DIAS` (7). Um agendamento para daqui a
+10 dias perderia os anexos — e, como `ler_anexos()` devolve `[]` para pasta
+inexistente, a mensagem sairia **sem anexo, em silêncio**, em vez de falhar.
+
+`limpar_rascunhos` passa `agendamento.tokens_pendentes()` para
+`limpar_rascunhos_expirados()`. Há teste que falha se alguém tirar.
+
+A segunda metade da mesma armadilha: **cada agendamento é dono dos seus
+arquivos.** `agendar()` move a pasta para um token novo
+(`anexos.transferir_rascunho`). Sem isso, dois agendamentos partindo do mesmo
+rascunho — um "voltar" no navegador e reenviar o POST — dividiriam a pasta, e o
+primeiro despacho, que limpa o rascunho ao concluir, levaria os anexos do
+segundo. Mesmo sintoma: sai sem anexo e ninguém fica sabendo.
+
+Poderia ser um `if` na hora de apagar; é uma transferência na hora de criar,
+porque assim a invariante é verdadeira por construção em vez de defendida caso
+a caso.
+
+### Teto por execução, e envio um a um
+
+Hostinger limita 100 destinatários por mensagem e 1.000–3.000 saídas por 24 h
+corridas (~500/hora no SMTP compartilhado); o Titan tem limites por hora e por
+dia que variam com o plano. Um lote disparado de uma vez volta como fileira de
+`FALHOU`, não como atraso. Daí `AGENDADOS_MAX_POR_EXECUCAO` e o laço
+sequencial.
+
+**Limite conhecido:** cada mensagem abre a sua conexão SMTP, porque a conexão
+pertence a `enviar_email()`. Para os volumes de hoje está bem; se um dia a fila
+ficar grande de verdade, reusar uma conexão por conta é o próximo passo.
+
+---
+
 ## Marcadores
 
 ### A lista é fechada
@@ -201,6 +331,7 @@ Registro do que já quebrou de verdade, para não repetir.
 | Prévia "só funciona no botão" | validação de destinatário derrubando a prévia | Ler o `access.log`: 200 com 113 bytes é JSON de erro |
 | Botão Enviar nunca desabilitava | `querySelector("form")` pegava o form de importar | Seletor genérico quebra quando a página ganha outro elemento |
 | Atributos do Trix não registravam | corrida com o `setTimeout` que registra os custom elements | Configurar no carregamento, não no evento |
+| (previsto, não sofrido) anexo de agendamento longo desapareceria | TTL do rascunho é menor que o prazo do agendamento, e `ler_anexos()` devolve `[]` em vez de falhar | Estado que expira por tempo não convive com prazo maior que o TTL sem alguém protegendo explicitamente |
 
 O padrão: **os bugs que os testes não pegaram foram encontrados olhando o
 artefato real** — o `.eml` recebido, o `access.log` do nginx, o DOM no

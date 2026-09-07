@@ -48,13 +48,16 @@ uv run pytest
   - `models.py` — `ContaEmail`, `Alias`, `RegistroEnvio`
   - `cripto.py` — cifra a senha SMTP
   - `aliases.py` — consulta ao banco + `verificar_aliases()`
+  - `agendamento.py` — fila do envio programado: criar, reivindicar, despachar
   - `saneamento.py` — embutir CSS, limpar HTML, HTML→texto
   - `montagem.py` — monta a mensagem (função pura)
   - `marcadores.py` — `{{ … }}` e o glossário
   - `envio.py` — conexão SMTP e o `RegistroEnvio`
   - `anexos.py` — rascunhos em disco
   - `eml.py` — importar `.eml` e reconstruir `References`
-  - `views.py` — redigir/prévia/envio, importar, histórico
+  - `views.py` — redigir/prévia/envio/agendar, importar, histórico, fila
+  - `management/commands/enviar.py` — a porta do operador e de agentes (ssh)
+  - `management/commands/despachar_agendados.py` — o que o cron chama
 
 ## Convenções que não devem ser "corrigidas"
 
@@ -74,7 +77,17 @@ O racional completo está em [docs/decisoes.md](docs/decisoes.md). Em resumo:
 - **`SMTP_TIMEOUT` não é opcional.**
 - **Corpo em quoted-printable**, não no `8bit` do Django.
 - **A importação de `.eml` nunca toca o disco.**
-- **Duplo envio não tem trava no servidor**, de propósito.
+- **Duplo envio não tem trava no servidor**, de propósito — **menos no
+  despacho de agendados**, que é o único lugar com trava de concorrência de
+  verdade, porque lá não há humano nem POST-redirect-GET.
+- **Não existe API HTTP de envio**, e não é lacuna: quem envia por fora da tela
+  usa `manage.py enviar` por ssh. Um endpoint autenticado por token capaz de
+  enviar como estes domínios seria um relay aberto com DMARC alinhado se o
+  token vazasse.
+- **A linha de comando não tem trava de `hash_previa`** — lá não existe o
+  intervalo humano que a trava protege. Quem quer conferir usa `--conferir`.
+- **Agendamento guarda o corpo cru do editor**, não o HTML pronto: sanitizar e
+  expandir marcador acontecem no despacho, pelo mesmo caminho da tela.
 
 ## Ao investigar um bug
 
@@ -89,9 +102,11 @@ real**, não no código:
 
 ## Estado
 
-`DATA_DIR` guarda o banco SQLite (contas, aliases, assinaturas, histórico) e os
-anexos pendentes. **Apagar `data/` apaga tudo isso** — e **não há backup
-automático**, a maior pendência conhecida do projeto (ver
+`DATA_DIR` guarda o banco SQLite (contas, aliases, assinaturas, histórico, **a
+fila de agendados**) e os anexos pendentes — inclusive os das mensagens
+agendadas, que precisam sobreviver ao TTL do rascunho. **Apagar `data/` apaga
+tudo isso** — e **não há backup automático**, a maior pendência conhecida do
+projeto, agravada desde que existe fila (ver
 [docs/operacao.md](docs/operacao.md#estado-e-backup)).
 
 O `SECRET_KEY` abre as senhas SMTP cifradas: perdê-lo exige redigitar todas.
