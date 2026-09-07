@@ -292,3 +292,52 @@ def test_comando_conferir_sai_1_em_backup_ruim(pasta_de_backup):
 def test_comando_conferir_sem_backup_reclama(pasta_de_backup):
     with pytest.raises(CommandError, match="Nenhum backup"):
         call_command("backup", "--conferir")
+
+
+# ---------------------------------------------------------------------------
+# O backup é um arquivo e mais nada
+# ---------------------------------------------------------------------------
+
+
+def test_backup_nao_deixa_satelites_do_wal(alias_de_teste, pasta_de_backup):
+    """A origem está em WAL e a cópia herdava o modo, deixando um `-wal` e um
+    `-shm` ao lado — que a rotação nunca apagava, e que convidam a copiar só o
+    arquivo principal com um journal alheio do lado."""
+    feito = backup.criar()
+
+    vizinhos = sorted(c.name for c in pasta_de_backup.iterdir())
+    assert vizinhos == [feito.caminho_manifesto.name, feito.caminho.name]
+
+
+def test_a_copia_sai_fora_do_wal_e_ainda_assim_abre(alias_de_teste, pasta_de_backup):
+    feito = backup.criar()
+
+    conexao = sqlite3.connect(f"file:{feito.caminho}?mode=ro", uri=True)
+    try:
+        modo = conexao.execute("PRAGMA journal_mode").fetchone()[0]
+        aliases = conexao.execute("SELECT COUNT(*) FROM mensagens_alias").fetchone()[0]
+    finally:
+        conexao.close()
+
+    assert modo == "delete"
+    assert aliases == 1
+
+
+def test_rotacao_nao_deixa_nada_para_tras(alias_de_teste, pasta_de_backup, relogio):
+    for _ in range(3):
+        backup.criar()
+        relogio()
+
+    backup.rotacionar(manter=1)
+
+    restante = sorted(c.name for c in pasta_de_backup.iterdir())
+    assert len(restante) == 2  # o .sqlite3 e o .json do mais novo, nada mais
+
+
+def test_copia_descartada_nao_deixa_satelites(alias_de_teste, pasta_de_backup, monkeypatch):
+    monkeypatch.setattr(backup, "integridade", lambda caminho: "*** in database main")
+
+    with pytest.raises(backup.ErroBackup):
+        backup.criar()
+
+    assert list(pasta_de_backup.iterdir()) == []

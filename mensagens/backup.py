@@ -49,6 +49,9 @@ logger = logging.getLogger(__name__)
 
 SUFIXO_BANCO = ".sqlite3"
 SUFIXO_MANIFESTO = ".json"
+# O SQLite cria estes ao lado de um banco em WAL. Um backup não deveria ter
+# satélite nenhum — ver `_fechar_como_arquivo_unico`.
+SUFIXOS_SATELITE = ("-wal", "-shm")
 
 
 class ErroBackup(Exception):
@@ -133,6 +136,32 @@ def _ultima_migracao() -> str:
     return f"{linha[0]}.{linha[1]}" if linha else "(nenhuma)"
 
 
+def _fechar_como_arquivo_unico(copia: sqlite3.Connection) -> None:
+    """Tira a cópia do WAL, para o backup ser **um arquivo e mais nada**.
+
+    A origem está em WAL, e a cópia herda o modo — então sobravam um `-wal` e um
+    `-shm` ao lado de cada backup. Dois problemas de verdade:
+
+    - a rotação apagava o `.sqlite3` e o `.json` e deixava os satélites órfãos,
+      para sempre;
+    - e um diretório de backup salpicado de `-wal` convida ao engano que o
+      próprio runbook de restauração alerta — copiar só o arquivo principal e
+      deixar um journal alheio ao lado.
+
+    Em `journal_mode=DELETE` o arquivo se basta. Ao ser restaurado, o
+    `init_command` do settings o devolve para WAL no primeiro acesso.
+    """
+    copia.execute("PRAGMA journal_mode=DELETE")
+
+
+def _apagar(caminho: Path) -> None:
+    """Apaga o backup e qualquer satélite que tenha sobrado."""
+    caminho.unlink(missing_ok=True)
+    caminho.with_suffix(SUFIXO_MANIFESTO).unlink(missing_ok=True)
+    for sufixo in SUFIXOS_SATELITE:
+        caminho.with_name(caminho.name + sufixo).unlink(missing_ok=True)
+
+
 def integridade(caminho: Path) -> str:
     """`"ok"` ou a explicação do SQLite. Abre o arquivo do backup, não o banco vivo."""
     if not caminho.is_file():
@@ -165,15 +194,16 @@ def criar() -> Backup:
     copia = sqlite3.connect(destino)
     try:
         origem.backup(copia)
+        _fechar_como_arquivo_unico(copia)
     except sqlite3.Error as exc:
-        destino.unlink(missing_ok=True)
+        _apagar(destino)
         raise ErroBackup(f"O SQLite recusou a cópia: {exc}") from exc
     finally:
         copia.close()
 
     veredito = integridade(destino)
     if veredito != "ok":
-        destino.unlink(missing_ok=True)
+        _apagar(destino)
         raise ErroBackup(f"A cópia saiu corrompida e foi descartada: {veredito}")
 
     manifesto = {
@@ -229,8 +259,7 @@ def rotacionar(manter: int | None = None) -> list[Path]:
         return []
     apagados = []
     for caminho in listar()[manter:]:
-        caminho.with_suffix(SUFIXO_MANIFESTO).unlink(missing_ok=True)
-        caminho.unlink(missing_ok=True)
+        _apagar(caminho)
         apagados.append(caminho)
     return apagados
 
