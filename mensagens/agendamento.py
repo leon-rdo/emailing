@@ -1,4 +1,4 @@
-"""Envio programado: criar, cancelar e despachar.
+"""Envio programado: criar, editar, cancelar e despachar.
 
 O despachante é um comando de `manage.py` rodando por cron — não há fila nem
 broker, e continua não havendo (ver docs/decisoes.md). A diferença que importa
@@ -14,6 +14,11 @@ Daí as três coisas que este módulo tem e o caminho da tela não precisa:
 
 O envio em si é o mesmo `enviar_email()` da tela, com o mesmo `RegistroEnvio` —
 uma trilha de auditoria só, independente de quem redigiu ou de quando saiu.
+
+Editar e despachar disputam a mesma linha, e quem decide é sempre um
+`UPDATE … WHERE status IN (…)` — nunca um `if` sobre um objeto lido antes. Entre
+a tela abrir e o operador clicar em Salvar, o cron pode ter reivindicado a
+mensagem; quem perde a corrida descobre pelo `rowcount`, não por sorte.
 """
 
 from __future__ import annotations
@@ -27,19 +32,40 @@ from django.utils import timezone
 from django.utils.html import escape
 
 from .aliases import alias_por_slug
-from .anexos import limpar_rascunho, transferir_rascunho
+from .anexos import limpar_rascunho, resumo_dos_anexos, transferir_rascunho
 from .envio import enviar_email
 from .models import Alias, EnvioAgendado, RegistroEnvio
 from .montagem import DadosRedacao
 
 logger = logging.getLogger(__name__)
 
-_PENDENTES = (EnvioAgendado.Status.AGENDADO, EnvioAgendado.Status.ENVIANDO)
+# Quem ainda vai precisar dos arquivos. O rascunho entra porque, sem isso, a
+# limpeza diária o deixaria sem anexo ao fim do TTL — e o rascunho só é aberto
+# de novo quando o operador voltar a ele, que pode ser depois.
+_COM_ANEXOS_VIVOS = (
+    EnvioAgendado.Status.RASCUNHO,
+    EnvioAgendado.Status.AGENDADO,
+    EnvioAgendado.Status.ENVIANDO,
+)
 
 
 # ---------------------------------------------------------------------------
 # Criar, ler de volta, cancelar
 # ---------------------------------------------------------------------------
+
+
+def _campos_de(dados: DadosRedacao) -> dict:
+    """Os campos do modelo que vêm do formulário, para criar e para reescrever."""
+    return {
+        "para": list(dados.para),
+        "cc": list(dados.cc),
+        "cco": list(dados.cco),
+        "assunto": dados.assunto,
+        "corpo_html": dados.corpo_html,
+        "citacao_html": dados.citacao_html,
+        "in_reply_to": dados.in_reply_to,
+        "referencias": dados.referencias,
+    }
 
 
 def agendar(
@@ -54,19 +80,100 @@ def agendar(
     o despacho de um levaria os anexos do outro (ver
     `anexos.transferir_rascunho`).
     """
+    token = transferir_rascunho(token_anexos)
     return EnvioAgendado.objects.create(
         alias=alias,
         enviar_em=enviar_em,
-        para=list(dados.para),
-        cc=list(dados.cc),
-        cco=list(dados.cco),
-        assunto=dados.assunto,
-        corpo_html=dados.corpo_html,
-        citacao_html=dados.citacao_html,
-        in_reply_to=dados.in_reply_to,
-        referencias=dados.referencias,
-        token_anexos=transferir_rascunho(token_anexos),
+        token_anexos=token,
+        anexos=resumo_dos_anexos(token),
+        **_campos_de(dados),
     )
+
+
+def guardar_rascunho(
+    alias: Alias, dados: DadosRedacao, enviar_em: datetime | None = None, token_anexos: str = ""
+) -> EnvioAgendado:
+    """Guarda a mensagem para continuar depois. Nada é validado além do formulário.
+
+    Nunca é despachada: o despacho só olha `status=agendado`. Os anexos mudam de
+    token pelo mesmo motivo de `agendar()`.
+    """
+    token = transferir_rascunho(token_anexos)
+    return EnvioAgendado.objects.create(
+        alias=alias,
+        enviar_em=enviar_em,
+        status=EnvioAgendado.Status.RASCUNHO,
+        token_anexos=token,
+        anexos=resumo_dos_anexos(token),
+        **_campos_de(dados),
+    )
+
+
+def reescrever(
+    pk: int,
+    alias: Alias,
+    dados: DadosRedacao,
+    *,
+    de: tuple[str, ...],
+    para: str,
+    enviar_em: datetime | None,
+    token_anexos: str,
+) -> bool:
+    """Troca o conteúdo de uma mensagem guardada e, se preciso, o seu status.
+
+    Cobre três gestos, que só diferem em `de` → `para`: salvar alterações de um
+    agendado (`agendado → agendado`), salvar um rascunho (`rascunho → rascunho`)
+    e as duas viradas (`rascunho → agendado` ao agendar, `agendado → rascunho` ao
+    tirar da fila). Devolve `False` — sem alterar nada — quando a mensagem já não
+    estava em nenhum dos estados `de`, tipicamente porque o cron a reivindicou
+    enquanto a tela estava aberta.
+
+    `token_anexos` é a **cópia** em que a tela trabalhou (ver
+    `anexos.copiar_rascunho`), não a pasta da mensagem. Ela só substitui a
+    original depois que o `UPDATE` ganha; perdendo, a cópia é apagada e a
+    original nunca foi tocada.
+
+    Zera `tentativas` e `erro`: reescrever é prometer outra coisa, e herdar
+    contagem de uma falha anterior gastaria as tentativas da promessa nova.
+    """
+    novo_token = transferir_rascunho(token_anexos)
+    antigo = EnvioAgendado.objects.filter(pk=pk).values_list("token_anexos", flat=True).first()
+    trocou = EnvioAgendado.objects.filter(pk=pk, status__in=de).update(
+        alias=alias,
+        enviar_em=enviar_em,
+        status=para,
+        token_anexos=novo_token,
+        anexos=resumo_dos_anexos(novo_token),
+        tentativas=0,
+        erro="",
+        atualizado_em=timezone.now(),
+        **_campos_de(dados),
+    )
+    if not trocou:
+        limpar_rascunho(novo_token)
+        return False
+    if antigo and antigo != novo_token:
+        limpar_rascunho(antigo)
+    return True
+
+
+def descartar_rascunho(pk: int) -> bool:
+    """Apaga o rascunho e os seus anexos. `False` se já não era um rascunho.
+
+    Apaga de verdade, não marca como cancelado: descartar é dizer "isto não
+    existiu", e um cemitério de rascunhos em `Encerrados` seria ruído. Só
+    rascunho — uma mensagem que já esteve na fila deixa rastro, e é por isso que
+    ela se **cancela**.
+    """
+    linha = EnvioAgendado.objects.filter(pk=pk, status=EnvioAgendado.Status.RASCUNHO).first()
+    if linha is None:
+        return False
+    apagou, _ = EnvioAgendado.objects.filter(
+        pk=pk, status=EnvioAgendado.Status.RASCUNHO
+    ).delete()
+    if apagou:
+        limpar_rascunho(linha.token_anexos)
+    return bool(apagou)
 
 
 def dados_de(agendado: EnvioAgendado) -> DadosRedacao:
@@ -92,9 +199,16 @@ def cancelar(pk: int) -> bool:
     agendado = EnvioAgendado.objects.filter(pk=pk).first()
     if agendado is None:
         return False
+    # A foto dos anexos é tirada **antes** de a pasta sumir: é o que deixa a tela
+    # de detalhe dizer o que estava anexado a uma mensagem já cancelada.
+    resumo = resumo_dos_anexos(agendado.token_anexos)
     trocou = EnvioAgendado.objects.filter(
         pk=pk, status=EnvioAgendado.Status.AGENDADO
-    ).update(status=EnvioAgendado.Status.CANCELADO)
+    ).update(
+        status=EnvioAgendado.Status.CANCELADO,
+        anexos=resumo or agendado.anexos,
+        atualizado_em=timezone.now(),
+    )
     if not trocou:
         return False
     # Os anexos ficaram órfãos no mesmo instante. Só é seguro apagar aqui
@@ -107,10 +221,12 @@ def tokens_pendentes() -> list[str]:
     """Tokens de anexo que a limpeza de rascunhos **não** pode apagar.
 
     Ver `anexos.limpar_rascunhos_expirados` — sem isto um agendamento longo sai
-    sem anexo, em silêncio.
+    sem anexo, em silêncio. Vale também para a mensagem salva como rascunho:
+    perderia os anexos ao fim do TTL, e dessa vez sem sequer haver um envio
+    para falhar.
     """
     return list(
-        EnvioAgendado.objects.filter(status__in=_PENDENTES)
+        EnvioAgendado.objects.filter(status__in=_COM_ANEXOS_VIVOS)
         .exclude(token_anexos="")
         .values_list("token_anexos", flat=True)
     )

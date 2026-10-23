@@ -99,7 +99,8 @@ que sai pela tela.
 
 ## Envio programado
 
-A fila fica em `/agendados/` (listar e cancelar). Quem despacha é o cron, de
+A fila fica em `/agendados/` (listar, editar e cancelar; os rascunhos ficam em
+`/rascunhos/`). Quem despacha é o cron, de
 minuto em minuto, por `/etc/cron.d/emailing-agendados`.
 
 ```bash

@@ -10,6 +10,9 @@
 		resolvidos na hora da entrega — o que está guardado aqui é a mensagem como você a
 		escreveu.
 	</p>
+	{% if total_rascunhos %}
+	<p class="nota">Há <a href="{% url 'mensagens:rascunhos' %}">{{ total_rascunhos }} rascunho{{ total_rascunhos|pluralize }}</a> guardado{{ total_rascunhos|pluralize }} — não saem sozinhos.</p>
+	{% endif %}
 
 	<h2>Esperando</h2>
 	{% if pendentes %}

@@ -1,0 +1,7 @@
+<script nonce="{{ request.csp_nonce }}">
+// Formulário com data-confirmar pergunta antes de enviar — para o que não tem volta.
+document.addEventListener("submit", function (evento) {
+	var pergunta = evento.target.dataset && evento.target.dataset.confirmar;
+	if (pergunta && !window.confirm(pergunta)) evento.preventDefault();
+});
+</script>

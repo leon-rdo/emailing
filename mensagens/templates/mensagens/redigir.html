@@ -1,13 +1,14 @@
 {% extends "mensagens/base.html" %}
 {% load static %}
 
-{% block titulo %}Redigir — Emailing{% endblock %}
+{% block titulo %}{% if linha %}Editar #{{ linha.pk }}{% else %}Redigir{% endif %} — Emailing{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'mensagens/trix.css' %}">
 {% endblock %}
 
 {% block conteudo %}
+{% if not linha %}
 <details class="cartao largo">
 	<summary>Responder a um e-mail existente</summary>
 	<form method="post" action="{% url 'mensagens:importar' %}" enctype="multipart/form-data" class="form-importar">
@@ -25,9 +26,24 @@
 		<button type="submit" class="botao">Usar para responder</button>
 	</form>
 </details>
+{% endif %}
 
 <div class="cartao largo">
+	{% if linha %}
+	<p><a href="{% url 'mensagens:agendado' linha.pk %}">&larr; detalhes de #{{ linha.pk }}</a></p>
+	<h1>
+		{% if linha.status == "rascunho" %}Rascunho #{{ linha.pk }}{% else %}Editar agendamento #{{ linha.pk }}{% endif %}
+		<span class="selo {{ linha.selo_css }}">{{ linha.get_status_display }}</span>
+	</h1>
+	{% if linha.status == "agendado" %}
+	<p class="nota">
+		Enquanto você edita, a mensagem continua na fila e sai na hora marcada. O que vale
+		é o que estiver salvo quando o cron a despachar.
+	</p>
+	{% endif %}
+	{% else %}
 	<h1>Redigir</h1>
+	{% endif %}
 
 	{% if form.in_reply_to.value %}
 	<p class="nota">Respondendo à mensagem <code>{{ form.in_reply_to.value }}</code>.</p>
@@ -148,7 +164,7 @@
 		</div>
 
 		<details class="agendamento" {% if form.enviar_em.value %}open{% endif %}>
-			<summary>Agendar em vez de enviar agora</summary>
+			<summary>{% if linha.status == "agendado" %}Quando sai{% else %}Agendar em vez de enviar agora{% endif %}</summary>
 			<p class="nota">
 				Sai na hora marcada, pelo mesmo caminho do envio imediato. Os marcadores
 				(<code>&#123;&#123; hora &#125;&#125;</code> e companhia) são resolvidos no
@@ -164,8 +180,14 @@
 
 		<div class="acoes">
 			<button type="submit" name="acao" value="previa" class="botao">Pré-visualizar</button>
+			{% if linha.status == "agendado" %}
+			<button type="submit" name="acao" value="salvar" class="primario botao-enviar" {% if not previa %}hidden{% endif %}>Salvar alterações</button>
+			<button type="submit" name="acao" value="salvar_rascunho" class="botao" title="Tira da fila e guarda como rascunho, sem cancelar">Tirar da fila (rascunho)</button>
+			{% else %}
 			<button type="submit" name="acao" value="enviar" class="primario botao-enviar" {% if not previa %}hidden{% endif %}>Enviar</button>
 			<button type="submit" name="acao" value="agendar" class="botao botao-enviar" {% if not previa %}hidden{% endif %}>Agendar</button>
+			<button type="submit" name="acao" value="salvar_rascunho" class="botao">Salvar rascunho</button>
+			{% endif %}
 		</div>
 	</form>
 </div>
@@ -180,12 +202,13 @@
 	var form = document.querySelector("form.form-redacao");
 	if (!form) return;
 
-	// Impede um clique duplo em "Enviar"/"Agendar" disparar dois envios antes do
-	// redirecionamento — não é o que protege contra F5 (isso é o próprio
+	// Impede um clique duplo em "Enviar"/"Agendar"/"Salvar" disparar duas gravações
+	// (dois envios, ou dois rascunhos iguais) antes do redirecionamento — não é o que protege contra F5 (isso é o próprio
 	// POST-redirect-GET), só a corrida de dois cliques quase simultâneos.
 	form.addEventListener("submit", function (evento) {
 		var botao = evento.submitter;
-		if (botao && botao.name === "acao" && (botao.value === "enviar" || botao.value === "agendar")) {
+		var gravam = ["enviar", "agendar", "salvar", "salvar_rascunho"];
+		if (botao && botao.name === "acao" && gravam.indexOf(botao.value) !== -1) {
 			setTimeout(function () { botao.disabled = true; }, 0);
 		}
 	});

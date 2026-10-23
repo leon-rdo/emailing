@@ -231,7 +231,16 @@ class RegistroEnvio(models.Model):
 
 
 class EnvioAgendado(models.Model):
-    """Uma mensagem já conferida, esperando a hora de sair.
+    """Uma mensagem já conferida, esperando a hora de sair — ou, no status
+    `rascunho`, uma mensagem guardada para continuar depois.
+
+    O nome ficou de quando a tabela só guardava a fila. O rascunho mora aqui e
+    não numa tabela própria porque é a mesma coisa em outro ponto do ciclo:
+    mesmos campos, mesmos anexos em disco, e "agendar" é só trocar o status. Uma
+    segunda tabela duplicaria os campos e a regra de proteção dos anexos.
+    Atenção ao vocabulário: "rascunho" no resto do código (`RASCUNHOS_DIR`,
+    `limpar_rascunhos`, o campo `rascunho` do formulário) é a pasta de **anexos**
+    pendentes; só `Status.RASCUNHO` é a mensagem salva.
 
     Guarda os mesmos campos de `DadosRedacao` (ver `montagem.py`), e guarda o
     corpo **como saiu do editor** — HTML bruto, não sanitizado, com os
@@ -251,6 +260,7 @@ class EnvioAgendado(models.Model):
     """
 
     class Status(models.TextChoices):
+        RASCUNHO = "rascunho", "Rascunho"
         AGENDADO = "agendado", "Agendado"
         ENVIANDO = "enviando", "Enviando"
         ENVIADO = "enviado", "Enviado"
@@ -258,7 +268,13 @@ class EnvioAgendado(models.Model):
         CANCELADO = "cancelado", "Cancelado"
 
     criado_em = models.DateTimeField("criado em", auto_now_add=True)
-    enviar_em = models.DateTimeField("enviar em", db_index=True)
+    # `auto_now` só vale para `save()`; os `UPDATE` condicionais de
+    # `agendamento.py` (que são como se edita sem brigar com o despacho) o
+    # preenchem à mão.
+    atualizado_em = models.DateTimeField("atualizado em", auto_now=True)
+    # Nulo só no rascunho que nunca teve data. Um rascunho pode guardar uma data
+    # provisória, e ela vira a do agendamento quando ele é agendado.
+    enviar_em = models.DateTimeField("enviar em", db_index=True, null=True, blank=True)
 
     # FK, não o slug como no `RegistroEnvio`: aquele é log histórico e precisa
     # sobreviver ao alias; este é uma promessa futura, e apagar o alias de uma
@@ -279,6 +295,10 @@ class EnvioAgendado(models.Model):
     in_reply_to = models.CharField("in_reply_to", max_length=255, blank=True)
     referencias = models.TextField("referências", blank=True)
     token_anexos = models.CharField("token de anexos", max_length=64, blank=True)
+    # Foto dos anexos na última gravação, no formato de `RegistroEnvio.anexos`.
+    # Existe para a tela de detalhe poder dizer **quais** eram depois que os
+    # arquivos se foram (cancelar apaga a pasta; o TTL leva a de um que falhou).
+    anexos = models.JSONField("anexos", default=list, blank=True)
 
     status = models.CharField(
         "status", max_length=10, choices=Status.choices, default=Status.AGENDADO
@@ -299,7 +319,7 @@ class EnvioAgendado(models.Model):
         indexes = [models.Index(fields=["status", "enviar_em"], name="agendado_status_quando")]
 
     def __str__(self):
-        quando = self.enviar_em.strftime("%d/%m/%Y %H:%M")
+        quando = self.enviar_em.strftime("%d/%m/%Y %H:%M") if self.enviar_em else "sem data"
         return f"{self.assunto or '(sem assunto)'} → {self.destinatarios} em {quando}"
 
     @property
@@ -311,8 +331,14 @@ class EnvioAgendado(models.Model):
         return self.status == self.Status.AGENDADO
 
     @property
+    def editavel(self) -> bool:
+        """Dá para mexer enquanto ninguém despachou: rascunho ou ainda na fila."""
+        return self.status in (self.Status.RASCUNHO, self.Status.AGENDADO)
+
+    @property
     def selo_css(self) -> str:
         return {
+            self.Status.RASCUNHO: "rascunho",
             self.Status.ENVIADO: "enviado",
             self.Status.FALHOU: "falhou",
             self.Status.CANCELADO: "cancelado",

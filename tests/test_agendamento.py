@@ -403,3 +403,172 @@ def test_dois_agendamentos_do_mesmo_rascunho_nao_dividem_a_pasta(
 
     assert len(mail.outbox) == 2
     assert len(mail.outbox[0].attachments) == 1
+
+
+# ---------------------------------------------------------------------------
+# Editar um agendamento e guardar rascunho
+# ---------------------------------------------------------------------------
+
+from mensagens.agendamento import (  # noqa: E402
+    descartar_rascunho,
+    guardar_rascunho,
+    reescrever,
+)
+from mensagens.anexos import copiar_rascunho  # noqa: E402
+
+_AGENDADO = EnvioAgendado.Status.AGENDADO
+_RASCUNHO = EnvioAgendado.Status.RASCUNHO
+
+
+def _amanha():
+    return timezone.now() + timedelta(days=1)
+
+
+def test_reescrever_troca_o_conteudo_e_zera_as_tentativas(alias_de_teste):
+    agendado = agendar(alias_de_teste, _dados(assunto="Antes"), _amanha())
+    EnvioAgendado.objects.filter(pk=agendado.pk).update(tentativas=2, erro="smtp caiu")
+
+    novo_horario = timezone.now() + timedelta(days=3)
+    assert reescrever(
+        agendado.pk, alias_de_teste, _dados(assunto="Depois", cc=["x@example.com"]),
+        de=(_AGENDADO,), para=_AGENDADO, enviar_em=novo_horario, token_anexos="",
+    ) is True
+
+    agendado.refresh_from_db()
+    assert (agendado.assunto, agendado.cc) == ("Depois", ["x@example.com"])
+    assert agendado.enviar_em == novo_horario
+    assert agendado.status == _AGENDADO
+    # Reescrever é prometer outra coisa: não herda a contagem da falha anterior.
+    assert (agendado.tentativas, agendado.erro) == (0, "")
+
+
+def test_reescrever_depois_do_despacho_nao_altera_nada(alias_de_teste):
+    """A corrida central: a tela abriu quando a mensagem ainda estava na fila,
+    o cron a reivindicou, e só então o operador clicou em Salvar."""
+    agendado = agendar(alias_de_teste, _dados(assunto="Original"), _amanha())
+    EnvioAgendado.objects.filter(pk=agendado.pk).update(status=EnvioAgendado.Status.ENVIANDO)
+
+    assert reescrever(
+        agendado.pk, alias_de_teste, _dados(assunto="Tarde demais"),
+        de=(_AGENDADO,), para=_AGENDADO, enviar_em=_amanha(), token_anexos="",
+    ) is False
+
+    agendado.refresh_from_db()
+    assert agendado.assunto == "Original"
+
+
+def test_editar_nao_toca_nos_anexos_da_mensagem_ate_salvar(alias_de_teste, tmp_path, settings):
+    """A tela trabalha numa cópia. Abandoná-la (ou o despacho passar no meio)
+    não pode mexer nos arquivos da mensagem na fila."""
+    settings.RASCUNHOS_DIR = tmp_path
+    token = criar_token()
+    salvar_anexo(token, SimpleUploadedFile("contrato.pdf", b"conteudo"))
+    agendado = agendar(alias_de_teste, _dados(), _amanha(), token_anexos=token)
+
+    copia = copiar_rascunho(agendado.token_anexos)
+    assert copia != agendado.token_anexos
+    salvar_anexo(copia, SimpleUploadedFile("extra.pdf", b"x"))
+
+    # a edição ainda não foi salva: a original continua com um arquivo só
+    assert [a.nome for a in listar_anexos(agendado.token_anexos)] == ["contrato.pdf"]
+
+    assert reescrever(
+        agendado.pk, alias_de_teste, _dados(),
+        de=(_AGENDADO,), para=_AGENDADO, enviar_em=_amanha(), token_anexos=copia,
+    )
+    agendado.refresh_from_db()
+    nomes = sorted(a.nome for a in listar_anexos(agendado.token_anexos))
+    assert nomes == ["contrato.pdf", "extra.pdf"]
+    assert sorted(a["nome"] for a in agendado.anexos) == nomes
+    assert agendado.token_anexos != token  # a pasta antiga foi substituída
+    assert not (tmp_path / token).exists()
+
+
+def test_perder_a_corrida_apaga_a_copia_e_preserva_a_original(
+    alias_de_teste, tmp_path, settings
+):
+    settings.RASCUNHOS_DIR = tmp_path
+    token = criar_token()
+    salvar_anexo(token, SimpleUploadedFile("contrato.pdf", b"conteudo"))
+    agendado = agendar(alias_de_teste, _dados(), _amanha(), token_anexos=token)
+    copia = copiar_rascunho(agendado.token_anexos)
+    EnvioAgendado.objects.filter(pk=agendado.pk).update(status=EnvioAgendado.Status.ENVIANDO)
+
+    assert reescrever(
+        agendado.pk, alias_de_teste, _dados(),
+        de=(_AGENDADO,), para=_AGENDADO, enviar_em=_amanha(), token_anexos=copia,
+    ) is False
+
+    assert not (tmp_path / copia).exists()
+    assert len(listar_anexos(agendado.token_anexos)) == 1  # o despacho ainda os tem
+
+
+def test_rascunho_nunca_e_despachado_nem_sem_data(alias_de_teste):
+    rascunho = guardar_rascunho(alias_de_teste, _dados(para=[]), enviar_em=None)
+    passado = guardar_rascunho(
+        alias_de_teste, _dados(), enviar_em=timezone.now() - timedelta(days=1)
+    )
+
+    assert despachar_pendentes() == []
+
+    assert mail.outbox == []
+    for r in (rascunho, passado):
+        r.refresh_from_db()
+        assert r.status == _RASCUNHO
+
+
+def test_rascunho_sem_data_tem_representacao(alias_de_teste):
+    rascunho = guardar_rascunho(alias_de_teste, _dados(assunto="Ideia"), enviar_em=None)
+    assert "sem data" in str(rascunho)
+
+
+def test_limpeza_preserva_anexo_de_rascunho(alias_de_teste, tmp_path, settings):
+    """A mesma armadilha do agendamento longo, dessa vez sem sequer haver um envio
+    para falhar: o rascunho voltaria sem anexo depois do TTL."""
+    settings.RASCUNHOS_DIR = tmp_path
+    token = criar_token()
+    salvar_anexo(token, SimpleUploadedFile("proposta.pdf", b"x"))
+    rascunho = guardar_rascunho(alias_de_teste, _dados(), token_anexos=token)
+
+    antigo = timezone.now().timestamp() - 30 * 86400
+    pasta = tmp_path / rascunho.token_anexos
+    for caminho in [pasta, *pasta.iterdir()]:
+        os.utime(caminho, (antigo, antigo))
+
+    assert rascunho.token_anexos in tokens_pendentes()
+    assert limpar_rascunhos_expirados(7, tokens_pendentes()) == 0
+    assert len(listar_anexos(rascunho.token_anexos)) == 1
+
+
+def test_descartar_rascunho_apaga_a_linha_e_os_arquivos(alias_de_teste, tmp_path, settings):
+    settings.RASCUNHOS_DIR = tmp_path
+    token = criar_token()
+    salvar_anexo(token, SimpleUploadedFile("a.pdf", b"x"))
+    rascunho = guardar_rascunho(alias_de_teste, _dados(), token_anexos=token)
+
+    assert descartar_rascunho(rascunho.pk) is True
+
+    assert not EnvioAgendado.objects.filter(pk=rascunho.pk).exists()
+    assert not (tmp_path / rascunho.token_anexos).exists()
+
+
+def test_descartar_so_vale_para_rascunho(alias_de_teste):
+    """Quem já esteve na fila deixa rastro: cancela-se, não se apaga."""
+    agendado = agendar(alias_de_teste, _dados(), _amanha())
+    assert descartar_rascunho(agendado.pk) is False
+    assert EnvioAgendado.objects.filter(pk=agendado.pk).exists()
+
+
+def test_cancelar_guarda_a_lista_de_anexos_antes_de_apagar_os_arquivos(
+    alias_de_teste, tmp_path, settings
+):
+    settings.RASCUNHOS_DIR = tmp_path
+    token = criar_token()
+    salvar_anexo(token, SimpleUploadedFile("nota.pdf", b"12345"))
+    agendado = agendar(alias_de_teste, _dados(), _amanha(), token_anexos=token)
+
+    cancelar(agendado.pk)
+
+    agendado.refresh_from_db()
+    assert listar_anexos(agendado.token_anexos) == []
+    assert [(a["nome"], a["tamanho"]) for a in agendado.anexos] == [("nota.pdf", 5)]

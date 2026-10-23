@@ -1,7 +1,8 @@
 """Apaga pastas de rascunho (anexos pendentes) abandonadas.
 
-Menos as de mensagem agendada: aqueles anexos precisam sobreviver até a hora do
-despacho, que pode ser depois do TTL. Ver `anexos.limpar_rascunhos_expirados`.
+Menos as de mensagem agendada ou salva como rascunho: aqueles anexos precisam
+sobreviver até a hora do despacho (ou até o operador voltar), que pode ser depois
+do TTL. Ver `anexos.limpar_rascunhos_expirados`.
 """
 
 from django.conf import settings
@@ -28,4 +29,6 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"{apagados} rascunho(s) com mais de {ttl} dia(s) apagado(s).")
         )
         if protegidos:
-            self.stdout.write(f"{len(protegidos)} preservado(s) por envio agendado pendente.")
+            self.stdout.write(
+                f"{len(protegidos)} preservado(s) por agendamento pendente ou rascunho salvo."
+            )

@@ -174,6 +174,29 @@ O `EnvioAgendado` guarda o `DadosRedacao` **como veio do editor**, cru. Por
 isso o despacho sanitiza e expande marcador no momento de sair — e é isso que
 faz `{{ hora }}` num agendamento significar a hora da entrega.
 
+### Editar, rascunhar, consultar
+
+A mesma linha de `EnvioAgendado` percorre `rascunho → agendado → enviando →
+enviado/falhou`, com `cancelado` como saída lateral de `agendado`. Toda mudança
+de estado feita pela tela é um `UPDATE … WHERE status IN (…)` conferido pelo
+`rowcount` — é assim que a edição e o despacho disputam a linha sem se pisar:
+
+```
+GET  /mensagens/<id>/editar/   copia os anexos → token novo (a "cópia")
+POST … acao=salvar             reescrever(de=agendado, para=agendado)
+POST … acao=salvar_rascunho    reescrever(de=rascunho|agendado, para=rascunho)
+POST … acao=agendar            reescrever(de=rascunho, para=agendado)
+POST … acao=enviar             enviar_email() e, se saiu, descartar o rascunho
+                               (só vale para rascunho; quem está na fila ignora)
+```
+
+`reescrever()` só troca a pasta de anexos da mensagem pela cópia **depois** de o
+`UPDATE` ganhar; se perde, apaga a cópia. Ver [decisoes.md](decisoes.md#edicao).
+
+`/agendados/<id>/` é só leitura e serve a qualquer estado. Mostra o corpo
+*autoral* (marcadores como escritos) e, para os anexos, a foto guardada em
+`EnvioAgendado.anexos` quando os arquivos já não existem.
+
 ## Anexos (`anexos.py`)
 
 Não existe rota de upload separada: qualquer POST da tela de redação processa
@@ -191,8 +214,8 @@ um vindo do navegador — é o que permite agendar com anexo sem um segundo cami
 de código. As regras de tamanho e extensão vivem em `_validar()`, chamado pelas
 duas origens de propósito.
 
-**A limpeza precisa conhecer a fila de agendados.** Anexo de mensagem agendada
-tem que sobreviver ao TTL, e uma pasta que desaparece faz `ler_anexos()`
+**A limpeza precisa conhecer a fila de agendados e os rascunhos salvos.** Anexo
+de mensagem agendada ou salva como rascunho tem que sobreviver ao TTL, e uma pasta que desaparece faz `ler_anexos()`
 devolver `[]` — a mensagem sairia sem anexo, em silêncio. Ver
 [decisoes.md](decisoes.md#anexos-agendados).
 

@@ -193,6 +193,42 @@ class FormularioRedacao(forms.Form):
         return limpos
 
 
+class FormularioRascunho(FormularioRedacao):
+    """Guardar não é enviar: nada precisa estar completo.
+
+    Só o "Para" deixa de ser obrigatório — é a última coisa que se decide, pelo
+    mesmo motivo de sempre. Endereço **inválido** continua sendo erro, ao
+    contrário da prévia: descartá-lo em silêncio faria o rascunho voltar
+    diferente do que foi salvo, e aqui não vem tecla nenhuma atrás para corrigir.
+
+    O `getaddresses` do Python já descarta sozinho texto em que não reconhece
+    endereço nenhum (`joao`, `isto-nao-e-email`), antes de o validador ver. Na
+    tela de envio isso aparece como "informe um endereço"; aqui, sem
+    obrigatoriedade, o campo simplesmente voltaria vazio. Por isso cada campo de
+    endereço recusa o que foi digitado e não deixou nada.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["para"].minimo_um = False
+
+    def _sem_perda(self, campo: str) -> list[str]:
+        validos = self.cleaned_data.get(campo) or []
+        digitado = (self.data.get(campo) or "").strip()
+        if digitado and not validos:
+            raise ValidationError(f"Endereço inválido: {digitado}")
+        return validos
+
+    def clean_para(self):
+        return self._sem_perda("para")
+
+    def clean_cc(self):
+        return self._sem_perda("cc")
+
+    def clean_cco(self):
+        return self._sem_perda("cco")
+
+
 class FormularioPrevia(FormularioRedacao):
     """A prévia é do conteúdo, não do envelope.
 

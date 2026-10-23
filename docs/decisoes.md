@@ -229,7 +229,9 @@ pasta com mtime acima de `RASCUNHOS_TTL_DIAS` (7). Um agendamento para daqui a
 inexistente, a mensagem sairia **sem anexo, em silêncio**, em vez de falhar.
 
 `limpar_rascunhos` passa `agendamento.tokens_pendentes()` para
-`limpar_rascunhos_expirados()`. Há teste que falha se alguém tirar.
+`limpar_rascunhos_expirados()`. Há teste que falha se alguém tirar. Os anexos de
+**mensagens salvas como rascunho** entram na mesma lista (ver
+[rascunho](#rascunho)).
 
 A segunda metade da mesma armadilha: **cada agendamento é dono dos seus
 arquivos.** `agendar()` move a pasta para um token novo
@@ -253,6 +255,98 @@ sequencial.
 **Limite conhecido:** cada mensagem abre a sua conexão SMTP, porque a conexão
 pertence a `enviar_email()`. Para os volumes de hoje está bem; se um dia a fila
 ficar grande de verdade, reusar uma conexão por conta é o próximo passo.
+
+### Rascunho é um status de `EnvioAgendado`, não uma tabela {#rascunho}
+
+**Alternativa:** um modelo `Rascunho` próprio.
+**Por que não:** rascunho e agendamento são a mesma mensagem em pontos diferentes
+do ciclo — mesmos campos, mesmos anexos em disco, e "agendar" passa a ser trocar
+o status. Duas tabelas duplicariam as colunas e, pior, a regra de proteger os
+anexos da limpeza (que é a armadilha de [anexos-agendados](#anexos-agendados)).
+O custo é um nome de modelo que ficou de quando só havia a fila; está explicado
+na docstring do modelo.
+
+**Vocabulário.** "Rascunho" já significava outra coisa neste código: a pasta de
+**anexos** pendentes (`RASCUNHOS_DIR`, `limpar_rascunhos`, o campo oculto
+`rascunho`, `anexos.limpar_rascunho`). A mensagem salva é só `Status.RASCUNHO`,
+e a tela diz "rascunho" nos dois sentidos sem problema porque o operador nunca
+vê o token. No código, a dúvida se resolve olhando se é `anexos.*` ou `Status`.
+
+**Isto não contradiz "a prévia e o envio compartilham a mesma função".** Aquele
+princípio proíbe usar uma cópia guardada **para calcular a prévia**, porque a
+cópia pode divergir do que sai. O rascunho salvo é uma escolha explícita do
+operador, e ao abrir uma mensagem guardada a prévia continua sendo recalculada
+(`views._previa_inicial`) a partir dos campos — nunca lida de um HTML guardado.
+
+**`enviar_em` ficou anulável** por causa dele: rascunho pode não ter data, ou
+guardar uma provisória que vira a do agendamento. O despacho nunca o enxerga —
+filtra `status='agendado' AND enviar_em <= agora`, e `NULL` não é `<=` nada.
+
+### Editar um agendamento é um `UPDATE` condicional, sobre uma cópia dos anexos {#edicao}
+
+O operador abre a edição quando a mensagem está na fila e clica em Salvar minutos
+depois. Entre as duas coisas o cron pode tê-la reivindicado. Duas defesas, uma
+para cada coisa que pode dar errado:
+
+1. **O conteúdo.** `agendamento.reescrever()` faz
+   `UPDATE … WHERE pk=… AND status IN (…)` e confere o `rowcount`, no mesmo
+   molde de `cancelar()` e `reivindicar()`. Ler o objeto, checar `status` num `if`
+   e depois gravar deixaria uma janela em que o despacho já saiu com o texto
+   velho e a edição "salva" por cima de uma mensagem que já foi. Quem perde
+   recebe o aviso de que o que editou não foi salvo — verdade, e melhor que o
+   silêncio.
+2. **Os anexos.** A tela de edição trabalha numa **cópia** da pasta
+   (`anexos.copiar_rascunho`), nunca na da mensagem. Se editasse a pasta viva,
+   remover um anexo e abandonar a aba mudaria a mensagem da fila sem ninguém ter
+   salvado, e o despacho poderia ler uma pasta pela metade. Só quando o `UPDATE`
+   ganha é que a cópia vira a pasta da mensagem e a antiga é apagada; se perde, a
+   cópia é apagada e a original nunca foi tocada.
+
+Custo aceito: abrir a tela copia os anexos (limitados a 25 MB no total) e uma
+edição abandonada deixa a cópia para o TTL da limpeza.
+
+`reescrever()` **zera `tentativas` e `erro`**. Editar é prometer outra coisa, e
+herdar a contagem de uma falha anterior gastaria as tentativas da promessa nova.
+
+### Salvar alterações exige a prévia; salvar rascunho não
+
+A trava de `hash_previa` existe para ninguém mandar (ou agendar) o que não
+conferiu. Editar um agendamento é agendar de novo — **mais** perigoso, porque
+ninguém relê no momento em que sai —, então "Salvar alterações" passa pela mesma
+trava. Ao abrir um agendamento a prévia já vem calculada, para o botão estar
+disponível sem o operador precisar provocar uma.
+
+"Salvar rascunho" dispensa a trava, o destinatário e o julgamento da data: nada
+sai dali, então nada disso protegeria de coisa alguma. O que **não** dispensa é
+endereço inválido (ver `FormularioRascunho`) — descartá-lo em silêncio faria o
+rascunho voltar diferente do que foi salvo.
+
+Quem está na fila **não envia nem agenda de novo** por esta tela; o POST forjado
+com `acao=enviar` é ignorado. Mandar "agora" algo agendado seria um segundo
+caminho de saída fora do despacho, que é onde mora a trava de concorrência.
+"Tirar da fila" existe, e só faz o agendado virar rascunho — sem cancelar.
+
+### Descartar apaga, cancelar não
+
+Descartar um rascunho remove a linha e os arquivos: é dizer "isto não existiu", e
+um cemitério em `Encerrados` seria ruído. Uma mensagem que já esteve na fila
+deixa rastro — cancela-se, e ela passa a ser consultável em `/agendados/<id>/`.
+
+Mas cancelar apaga os **arquivos** (ver `agendamento.cancelar`), e a tela de
+detalhe precisa dizer o que havia anexado. Daí `EnvioAgendado.anexos`: uma foto
+(nome, tamanho, tipo) tirada a cada gravação e, em `cancelar()`, **antes** de a
+pasta sumir. A tela mostra a lista e avisa que os arquivos já não existem.
+
+O corpo exibido no detalhe é o **autoral** — sanitizado, com a assinatura, e com
+os marcadores como escritos. Expandi-los mostraria a hora de agora num
+agendamento que nunca saiu, o que seria uma mentira plausível.
+
+### O anexo de rascunho não expira
+
+`tokens_pendentes()` protege os anexos de rascunho do TTL pelo mesmo motivo dos
+de agendamento longo: o rascunho é aberto quando o operador voltar, que pode ser
+depois dos 7 dias, e voltaria sem anexo. O preço é que um rascunho esquecido
+guarda os arquivos para sempre. Descartar o rascunho os apaga.
 
 ---
 

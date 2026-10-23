@@ -45,18 +45,21 @@ uv run pytest
 - `config/` — `settings.py` (arquivo único, tudo do ambiente), `urls.py`,
   `middleware.py` (nonce de CSP, cabeçalhos, exigência de OTP), `hashers.py`.
 - `mensagens/` — o app único:
-  - `models.py` — `ContaEmail`, `Alias`, `RegistroEnvio`
+  - `models.py` — `ContaEmail`, `Alias`, `RegistroEnvio`, `EnvioAgendado` (a fila
+    **e** os rascunhos: é o status que separa)
   - `cripto.py` — cifra a senha SMTP
   - `aliases.py` — consulta ao banco + `verificar_aliases()`
   - `backup.py` — cópia verificada do banco, rotação e manifesto
-  - `agendamento.py` — fila do envio programado: criar, reivindicar, despachar
+  - `agendamento.py` — fila do envio programado: criar, editar, cancelar,
+    reivindicar, despachar; e os rascunhos salvos
   - `saneamento.py` — embutir CSS, limpar HTML, HTML→texto
   - `montagem.py` — monta a mensagem (função pura)
   - `marcadores.py` — `{{ … }}` e o glossário
   - `envio.py` — conexão SMTP e o `RegistroEnvio`
   - `anexos.py` — rascunhos em disco
   - `eml.py` — importar `.eml` e reconstruir `References`
-  - `views.py` — redigir/prévia/envio/agendar, importar, histórico, fila
+  - `views.py` — redigir/editar/prévia/envio/agendar/rascunho, importar,
+    histórico, fila, detalhe de agendado
   - `management/commands/enviar.py` — a porta do operador e de agentes (ssh)
   - `management/commands/despachar_agendados.py` — o que o cron chama
 
@@ -74,7 +77,14 @@ O racional completo está em [docs/decisoes.md](docs/decisoes.md). Em resumo:
   vezes por isso.
 - **O `hash_previa` é do conteúdo autoral**, com os marcadores intactos.
 - **A lista de marcadores é fechada.**
-- **A prévia não persiste rascunho** — recalcula sobre o mesmo POST.
+- **A prévia não persiste rascunho** — recalcula sobre o mesmo POST. Isso é
+  sobre a *prévia*; o rascunho **salvo** pelo operador existe (status
+  `rascunho` de `EnvioAgendado`) e a prévia dele também é recalculada. "Rascunho"
+  no código é também a pasta de **anexos** — ver
+  [decisoes.md](docs/decisoes.md#rascunho).
+- **Editar um agendado é `UPDATE … WHERE status`, sobre uma cópia dos anexos.**
+  Nunca `if` + `save()`, nunca editar a pasta viva — o cron concorre pela linha.
+  Ver [decisoes.md](docs/decisoes.md#edicao).
 - **`SMTP_TIMEOUT` não é opcional.**
 - **Corpo em quoted-printable**, não no `8bit` do Django.
 - **A importação de `.eml` nunca toca o disco.**
@@ -104,8 +114,8 @@ real**, não no código:
 ## Estado
 
 `DATA_DIR` guarda o banco SQLite (contas, aliases, assinaturas, histórico, **a
-fila de agendados**) e os anexos pendentes — inclusive os das mensagens
-agendadas, que precisam sobreviver ao TTL do rascunho. **Apagar `data/` apaga
+fila de agendados e os rascunhos**) e os anexos pendentes — inclusive os das
+mensagens agendadas e dos rascunhos, que precisam sobreviver ao TTL. **Apagar `data/` apaga
 tudo isso.**
 
 Há backup diário desde 2026-09-07 (`manage.py backup`, cron, 14 cópias em

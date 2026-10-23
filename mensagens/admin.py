@@ -25,6 +25,7 @@ _COR_SELO = {
     RegistroEnvio.Status.FALHOU: "#b42318",
     RegistroEnvio.Status.ENVIANDO: "#6b7280",
     EnvioAgendado.Status.AGENDADO: "#24578f",
+    EnvioAgendado.Status.RASCUNHO: "#6b7280",
     EnvioAgendado.Status.CANCELADO: "#6b7280",
 }
 
@@ -151,9 +152,10 @@ class EnvioAgendadoAdmin(admin.ModelAdmin):
     """Só leitura, inclusive para apagar.
 
     Editar o corpo aqui passaria por cima da prévia — e a promessa do
-    agendamento é justamente que sai o que foi conferido. Cancelar tem uma porta
-    só, `/agendados/`, porque é a que também apaga os anexos que ficariam
-    órfãos (ver `agendamento.cancelar`).
+    agendamento é justamente que sai o que foi conferido. Editar tem uma porta
+    só, a tela de redação (`/mensagens/<id>/editar/`), e cancelar também,
+    `/agendados/`, porque é a que apaga os anexos que ficariam órfãos (ver
+    `agendamento.cancelar`). Rascunhos aparecem aqui também, sem data.
     """
 
     list_display = ("enviar_em", "alias", "para_resumido", "assunto", "selo", "tentativas")
@@ -166,8 +168,8 @@ class EnvioAgendadoAdmin(admin.ModelAdmin):
         (None, {"fields": ("status", "enviar_em", "tentativas", "ultima_tentativa_em", "erro")}),
         ("Envelope", {"fields": ("alias", "para", "cc", "cco", "assunto")}),
         ("Cabeçalhos", {"fields": ("in_reply_to", "referencias")}),
-        ("Conteúdo", {"fields": ("corpo_html", "citacao_html", "token_anexos")}),
-        ("Resultado", {"fields": ("criado_em", "registro")}),
+        ("Conteúdo", {"fields": ("corpo_html", "citacao_html", "token_anexos", "anexos")}),
+        ("Resultado", {"fields": ("criado_em", "atualizado_em", "registro")}),
     )
 
     @admin.display(description="para")

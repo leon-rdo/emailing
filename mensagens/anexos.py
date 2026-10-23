@@ -241,6 +241,31 @@ def transferir_rascunho(token: str) -> str:
     return novo
 
 
+def copiar_rascunho(token: str) -> str:
+    """Copia os anexos para um token novo e devolve o novo. `""` se não havia nada.
+
+    É o que permite **editar** uma mensagem guardada sem tocar nela: a tela de
+    edição trabalha na cópia (adiciona, remove, abandona) e só na hora de salvar
+    a cópia substitui a original. Mexer direto na pasta do agendamento deixaria o
+    despacho enxergar uma edição pela metade — ou uma abandonada.
+    """
+    if not token:
+        return ""
+    origem = _pasta(token)
+    if not origem.is_dir():
+        return ""
+    novo = criar_token()
+    shutil.copytree(origem, _pasta(novo))
+    return novo
+
+
+def resumo_dos_anexos(token: str) -> list[dict]:
+    """Nome, tamanho e tipo dos anexos do token, no formato de `RegistroEnvio.anexos`."""
+    return [
+        {"nome": a.nome, "tamanho": a.tamanho, "tipo": a.tipo} for a in listar_anexos(token)
+    ]
+
+
 def limpar_rascunho(token: str) -> None:
     """Apaga a pasta inteira do rascunho — chamado depois de um envio bem-sucedido."""
     if token:

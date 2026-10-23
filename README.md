@@ -152,6 +152,22 @@ mensagem é guardada **como você escreveu**: sanitização e marcadores acontec
 na hora da entrega, então `{{ hora }}` num agendamento significa a hora em que
 a mensagem sai, que é o que se espera.
 
+### Editar um agendado, rascunhos e detalhes
+
+- **Editar.** Em `/agendados/`, *editar* abre a mesma tela de redação sobre a
+  mensagem. *Salvar alterações* exige uma prévia, como agendar (ela já vem
+  calculada ao abrir). Se o cron despachar a mensagem enquanto a tela está
+  aberta, o salvamento é recusado com um aviso — nada é sobrescrito.
+- **Tirar da fila.** *Tirar da fila (rascunho)* devolve o agendado a rascunho
+  sem cancelar, para retomar depois.
+- **Rascunhos.** *Salvar rascunho* guarda a mensagem como está — sem prévia, sem
+  destinatário, sem data. Ficam em `/rascunhos/`, nunca saem sozinhos, e dali se
+  abre para enviar ou agendar. Os anexos ficam guardados junto.
+- **Detalhes.** `/agendados/<id>/` mostra tudo sobre uma mensagem guardada em
+  qualquer estado, inclusive cancelada: destinatários, cabeçalhos de resposta,
+  tentativas, erro, o corpo e a lista de anexos (os arquivos são apagados ao
+  cancelar, mas a lista permanece).
+
 Se um envio agendado falhar, ele volta para a fila com espera crescente (5, 10,
 20 min). Esgotadas as tentativas, vira `Falhou` com o erro à vista — e manda um
 aviso para `AGENDADOS_AVISAR_PARA`, se você tiver preenchido. Vale preencher:
