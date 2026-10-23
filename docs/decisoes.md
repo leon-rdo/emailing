@@ -126,6 +126,75 @@ o que entra no hash, é o HTML puro. Há teste garantindo.
 
 ---
 
+## Frontend
+
+Redesenho de outubro/2026: casca de webmail (menu lateral, lista, modal de escrita),
+com a tipografia como identidade. O que parece errado até saber por quê:
+
+### A prévia é um painel fixo, nunca escondido {#previa-fixa}
+
+**Alternativa:** painel `hidden` até o primeiro "Pré-visualizar" (como era), ou
+prévia abaixo do formulário.
+**Por que não:** o operador só via a prévia depois de clicar, longe do editor — era a
+queixa. Agora ela ocupa a coluna direita do modal e `compor.js` a pede ao carregar a
+tela, sem esperar tecla.
+**O que continua igual:** a trava de `hash_previa`. O que mudou é o botão: nasce
+`disabled` (antes, `hidden`) e só libera com a prévia **em dia**; enquanto o
+operador digita, volta a `disabled`. Sem JS o servidor continua recusando hash velho.
+
+### O botão Enviar também espera um destinatário, mas a prévia não {#destino-no-botao}
+
+A prévia segue tolerante com o "Para" (ver [acima](#previa)) — exigi-lo já a matou duas
+vezes. Quem exige é o **botão**: `compor.js` mantém Enviar/Agendar/Salvar alterações
+desabilitados sem algo com `@` no "Para" e diz o motivo. O servidor valida de qualquer
+jeito; isto só poupa a ida e volta.
+
+### O `<iframe sandbox="">` fica, e a prévia pisca-menos por troca de iframe {#sandbox}
+
+Para preservar a rolagem da prévia seria preciso `allow-same-origin`, o que enfraquece
+a garantia documentada (e testada) de que a prévia não executa nada. Preferiu-se
+perder a rolagem entre atualizações e **trocar o iframe só depois de o novo carregar**,
+para não piscar em branco. Pelo mesmo motivo a tela de envio (`registro.html`) passa o
+corpo pela mesma moldura: sem ela o iframe cai na fonte serifada do navegador.
+
+### Fonte variável servida do próprio domínio
+
+`Bricolage Grotesque` (largura 75–100, peso 200–800) e `Spline Sans Mono` ficam em
+`static/mensagens/fontes/` (licença OFL em `LICENSE.txt`). O CSP tem `font-src 'self'`:
+fonte de terceiros não carrega. Sem npm, sem pacote: dois `.woff2` baixados uma vez.
+A mono é só para dado (datas, contagens, cabeçalhos técnicos), nunca enfeite.
+
+### O assunto condensa ao encher
+
+O campo de assunto é um `<input>` em corpo grande cujo eixo de largura fecha de 100%
+para 75% conforme o texto cresce, e depois o corpo diminui. Continua `<input>`, **não
+`textarea`**: assunto com quebra de linha vira `BadHeaderError` no Django.
+
+### O modal de escrita é uma tela inteira, não um fragmento
+
+`redigir` renderiza a lista de onde a pessoa veio (só cenário, `inert`) e o `<dialog>`
+por cima; fechar navega para a lista. Não é um fragmento carregado por fetch: o POST
+de enviar/agendar/salvar continua sendo uma navegação completa com
+POST-redirect-GET, e a lista atrás é a real (`views._fundo_do_modal`). Fechar com texto
+não salvo pergunta antes (`data-sujo`); a tela reaberta por um POST (anexo, erro de
+campo) já nasce "suja".
+
+### O anexo sobe ao escolher o arquivo
+
+A prévia ao vivo (`/previa-ajax/`) não lê `FILES`, e o anexo precisa estar em disco para
+entrar na lista e no hash. Então escolher um arquivo dispara um POST completo
+(`acao=previa`), o mesmo que o antigo botão "Pré-visualizar". Esse botão ainda existe,
+invisível, como **primeiro submit do formulário**: é ele que o Enter num campo aciona,
+nunca "Enviar".
+
+### Cor do alias: só matizes que não são vermelho
+
+O bloco de cor de cada alias na lista vem de `crc32(slug)` (não de `hash()`, que muda a
+cada processo) sobre uma lista fixa de matizes **sem vermelho**: vermelho é a cor de
+"falhou", e um alias vermelho esconderia um envio que deu errado.
+
+---
+
 ## Automação e envio programado
 
 ### Envio fora da tela é comando de `manage.py`, não API HTTP {#cli}

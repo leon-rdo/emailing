@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-23T00:00:00.000Z",
+  "title": "Design System: Emailing",
+  "extensions": {
+    "colorMeta": {
+      "papel": { "role": "neutral", "displayName": "Papel Azulado", "canonical": "#f5f6f8", "tonalRamp": ["#1d1e22", "#3a3c43", "#575a63", "#7a7d86", "#a3a6ae", "#c8cad0", "#e3e5ea", "#f5f6f8"] },
+      "superficie": { "role": "neutral", "displayName": "Superfície", "canonical": "#ffffff", "tonalRamp": ["#222222", "#444444", "#666666", "#888888", "#aaaaaa", "#cccccc", "#eeeeee", "#ffffff"] },
+      "tinta": { "role": "neutral", "displayName": "Tinta", "canonical": "#0e0e12", "tonalRamp": ["#0e0e12", "#24242b", "#3d414d", "#5b5f6c", "#868a96", "#b0b3bd", "#d9dce3", "#f5f6f8"] },
+      "linha": { "role": "neutral", "displayName": "Linha", "canonical": "#d9dce3", "tonalRamp": ["#33353c", "#4f525b", "#6c6f79", "#8d909a", "#b9bdc8", "#d9dce3", "#e8eaee", "#f5f6f8"] },
+      "acao": { "role": "primary", "displayName": "Azul de Fundição", "canonical": "#2a35ff", "tonalRamp": ["#0a0f66", "#10199e", "#1a24d6", "#2a35ff", "#6670ff", "#99a0ff", "#cbcfff", "#e6e8ff"] },
+      "erro": { "role": "secondary", "displayName": "Vermelho de Falha", "canonical": "#c8102e", "tonalRamp": ["#3d0510", "#650a1a", "#8f0d25", "#c8102e", "#e0475d", "#ee8794", "#f8c3ca", "#fdecee"] },
+      "ok": { "role": "secondary", "displayName": "Verde de Entregue", "canonical": "#0a7d4b", "tonalRamp": ["#03281a", "#064a2d", "#0a7d4b", "#2ea36f", "#69c49b", "#9fdcbf", "#c8ecd9", "#e3f5ec"] },
+      "fila": { "role": "secondary", "displayName": "Âmbar de Fila", "canonical": "#7a4b00", "tonalRamp": ["#2b1a00", "#4f3000", "#7a4b00", "#a8700a", "#d19a3d", "#e8bd77", "#f6dba9", "#fff1d6"] }
+    },
+    "typographyMeta": {
+      "marca": { "displayName": "Marca", "purpose": "Nome no menu, 800 com largura 75%." },
+      "cartaz": { "displayName": "Cartaz", "purpose": "Campo de assunto: largura 100% a 75% e tamanho 54px a 42% conforme o comprimento." },
+      "display": { "displayName": "Display", "purpose": "Título da tela de entrada." },
+      "headline": { "displayName": "Headline", "purpose": "Título de página e de leitura." },
+      "title": { "displayName": "Title", "purpose": "Títulos de seção e da via de prévia." },
+      "body": { "displayName": "Body", "purpose": "Texto geral, 15px." },
+      "label": { "displayName": "Label", "purpose": "Rótulos de campo, botões, resumos." },
+      "dado": { "displayName": "Dado", "purpose": "Mono para datas, contagens e tamanhos, tabular." }
+    },
+    "shadows": [
+      { "name": "modal", "value": "0 28px 70px -14px rgb(14 14 18 / .5), 0 0 0 1px rgb(14 14 18 / .08)", "purpose": "Modal de escrita sobre a página." },
+      { "name": "aviso", "value": "0 10px 30px -8px rgb(14 14 18 / .45)", "purpose": "Toast flutuante." },
+      { "name": "folha-previa", "value": "0 1px 2px rgb(14 14 18 / .12), 0 6px 18px -10px rgb(14 14 18 / .3)", "purpose": "Folha branca da prévia sobre fundo cinza-azulado." },
+      { "name": "foco-campo", "value": "0 0 0 3px #e6e8ff", "purpose": "Halo de foco em campos e busca." },
+      { "name": "dialogo-trix", "value": "0 12px 32px -10px rgb(14 14 18 / .3)", "purpose": "Diálogo de link do editor." }
+    ],
+    "motion": [
+      { "name": "ease", "value": "cubic-bezier(.16, 1, .3, 1)", "purpose": "Entrada do aviso (.28s), subida do modal (.26s) e largura da prévia (.2s)." },
+      { "name": "hover", "value": ".12s a .15s, linear/padrão", "purpose": "Troca de cor em botões, linhas e links." },
+      { "name": "condensa-assunto", "value": "font-stretch .15s linear", "purpose": "Assunto condensando ao encher." }
+    ],
+    "breakpoints": [
+      { "name": "estreito", "value": "1180px" },
+      { "name": "tablet", "value": "900px" },
+      { "name": "celular", "value": "560px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Botão primário",
+      "kind": "button",
+      "refersTo": "botao-primario",
+      "description": "Ação principal em pílula azul.",
+      "html": "<button class=\"ds-botao-primario\">Enviar</button>",
+      "css": ".ds-botao-primario { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border: 1px solid #2a35ff; border-radius: 999px; background: #2a35ff; color: #fff; font: 600 15px/1.2 'Bricolage Grotesque', system-ui, sans-serif; cursor: pointer; transition: background-color .12s, border-color .12s; } .ds-botao-primario:hover { background: #1a24d6; border-color: #1a24d6; } .ds-botao-primario:focus-visible { outline: 2px solid #2a35ff; outline-offset: 2px; } .ds-botao-primario:disabled { background: #d9dce3; border-color: #d9dce3; color: #5b5f6c; cursor: not-allowed; }"
+    },
+    {
+      "name": "Botão secundário",
+      "kind": "button",
+      "refersTo": "botao-secundario",
+      "description": "Ação comum: pílula transparente com contorno de tinta.",
+      "html": "<button class=\"ds-botao\">Salvar rascunho</button>",
+      "css": ".ds-botao { display: inline-flex; align-items: center; justify-content: center; padding: 10px 20px; border: 1px solid #0e0e12; border-radius: 999px; background: transparent; color: #0e0e12; font: 600 15px/1.2 'Bricolage Grotesque', system-ui, sans-serif; cursor: pointer; transition: background-color .12s; } .ds-botao:hover { background: rgb(14 14 18 / .06); } .ds-botao:focus-visible { outline: 2px solid #2a35ff; outline-offset: 2px; }"
+    },
+    {
+      "name": "Item de menu ativo",
+      "kind": "nav",
+      "refersTo": "menu-item-ativo",
+      "description": "Item do menu lateral na página atual.",
+      "html": "<a class=\"ds-menu-item\" href=\"#\">Enviados</a><a class=\"ds-menu-item ds-ativo\" href=\"#\" aria-current=\"page\">Agendados</a>",
+      "css": ".ds-menu-item { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border-radius: 6px; color: #3d414d; text-decoration: none; font: 400 15px/1.5 'Bricolage Grotesque', system-ui, sans-serif; } .ds-menu-item:hover { background: rgb(14 14 18 / .05); color: #0e0e12; } .ds-menu-item:focus-visible { outline: 2px solid #2a35ff; outline-offset: 2px; } .ds-ativo { background: #e6e8ff; color: #1a24d6; font-weight: 700; }"
+    },
+    {
+      "name": "Campo de texto",
+      "kind": "input",
+      "refersTo": "campo",
+      "description": "Campo com contorno e halo de foco azul.",
+      "html": "<input class=\"ds-campo\" type=\"text\" placeholder=\"Nome\">",
+      "css": ".ds-campo { width: 100%; padding: 10px 12px; border: 1px solid #b9bdc8; border-radius: 6px; background: #fff; color: #0e0e12; font: inherit; font-family: 'Bricolage Grotesque', system-ui, sans-serif; } .ds-campo::placeholder { color: #5b5f6c; } .ds-campo:focus { outline: none; border-color: #2a35ff; box-shadow: 0 0 0 3px #e6e8ff; }"
+    },
+    {
+      "name": "Assunto-cartaz",
+      "kind": "custom",
+      "refersTo": "cartaz",
+      "description": "Campo de assunto em corpo 54 que condensa ao encher.",
+      "html": "<div class=\"ds-assunto\"><input type=\"text\" value=\"Proposta de renovação\"></div>",
+      "css": ".ds-assunto { border-bottom: 1px solid #d9dce3; } .ds-assunto:focus-within { border-bottom-color: #2a35ff; box-shadow: 0 1px 0 #2a35ff; } .ds-assunto input { display: block; width: 100%; padding: 18px 0 14px; border: 0; background: transparent; outline: none; color: #0e0e12; font-family: 'Bricolage Grotesque', system-ui, sans-serif; font-weight: 800; font-size: 54px; font-stretch: 90%; line-height: 1.05; letter-spacing: -.025em; }"
+    },
+    {
+      "name": "Linha de mensagem",
+      "kind": "card",
+      "refersTo": "linha-lista",
+      "description": "Linha densa de 44px: bloco de alias, remetente, assunto e trecho, selo, data mono.",
+      "html": "<div class=\"ds-item\"><span class=\"ds-bloco\"></span><strong>contato@exemplo.com</strong><span><b>Assunto</b> <span class=\"ds-trecho\">trecho da mensagem</span></span><span class=\"ds-selo\">enviado</span><span class=\"ds-quando\">ontem 14:02</span></div>",
+      "css": ".ds-item { display: grid; grid-template-columns: 14px 170px minmax(0, 1fr) auto 132px; align-items: center; gap: 0 16px; min-height: 44px; padding: 6px 28px; border-bottom: 1px solid #d9dce3; font: 400 15px/1.5 'Bricolage Grotesque', system-ui, sans-serif; color: #0e0e12; } .ds-item:hover { background: #fff; } .ds-bloco { width: 14px; height: 14px; border-radius: 3px; background: oklch(58% .16 260); } .ds-trecho { color: #5b5f6c; font-weight: 300; font-stretch: 85%; } .ds-selo { padding: 1px 9px; border: 1px solid currentColor; border-radius: 999px; color: #0a7d4b; font-size: 12px; font-weight: 600; } .ds-quando { text-align: right; font: 500 12px 'Spline Sans Mono', ui-monospace, monospace; color: #5b5f6c; }"
+    },
+    {
+      "name": "Selos de estado",
+      "kind": "chip",
+      "refersTo": "selo-falhou",
+      "description": "Pílulas de estado: falhou e agendado em par de cor forte e fundo fraco.",
+      "html": "<span class=\"ds-selo ds-falhou\">falhou</span> <span class=\"ds-selo ds-agendado\">agendado</span>",
+      "css": ".ds-selo { display: inline-block; padding: 1px 9px; border: 1px solid currentColor; border-radius: 999px; font: 600 12px/1.6 'Bricolage Grotesque', system-ui, sans-serif; } .ds-falhou { color: #c8102e; background: #fdecee; } .ds-agendado { color: #7a4b00; background: #fff1d6; border-color: transparent; }"
+    },
+    {
+      "name": "Aviso",
+      "kind": "custom",
+      "refersTo": "aviso",
+      "description": "Toast escuro, canto inferior esquerdo; vermelho em erro.",
+      "html": "<div class=\"ds-aviso\">Mensagem enviada.</div>",
+      "css": ".ds-aviso { display: inline-flex; align-items: flex-start; gap: 10px; padding: 12px 16px; border-radius: 10px; background: #0e0e12; color: #fff; font: 500 15px/1.5 'Bricolage Grotesque', system-ui, sans-serif; box-shadow: 0 10px 30px -8px rgb(14 14 18 / .45); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "O Espécime Tipográfico",
+    "overview": "A tipografia é a interface. Uma única fonte variável, Bricolage Grotesque, carrega a hierarquia inteira pelos eixos de largura (75% a 100%) e peso (200 a 800): o que importa fica largo e pesado, o que é contexto fica condensado e leve. O assunto da mensagem vira cartaz enquanto se digita (800, 54px, largura 100%) e condensa ao encher, até 75% de largura e 42% do tamanho base. O resto da tela se cala para que isso aconteça: papel branco-azulado, tinta quase preta, hairlines de 1px e um único azul.\n\nO sistema é um webmail clássico (menu lateral, lista densa, modal de escrita com prévia ao lado) lido como espécime. A densidade é de ferramenta de uso diário: linhas de 44px, texto de 15px, números e datas em mono. O sistema recusa o webmail genérico de cápsulas cinza e o creme com serifa. Não há ilustração nem imagem decorativa; a cor de alias (um quadrado de 14px) é a única marca visual por conta.",
+    "keyCharacteristics": [
+      "Uma família variável para tudo; mono apenas para dado.",
+      "Um azul de ação; vermelho só para falha.",
+      "Hairlines em vez de sombras; profundidade só no modal, no aviso e na folha da prévia.",
+      "Botões e campos de busca em pílula; campos, menus e blocos em raio 6px.",
+      "Linhas densas de 44px, margem de página de 28px."
+    ],
+    "rules": [
+      { "name": "The One Blue Rule", "body": "Só o azul age. Nenhum segundo acento, nenhum botão colorido por categoria.", "section": "colors" },
+      { "name": "The Red Means Failed Rule", "body": "O vermelho não decora nem enfatiza: aparece apenas onde algo falhou ou é destrutivo em hover.", "section": "colors" },
+      { "name": "The Alias Swatch Rule", "body": "A identidade de uma conta é um bloco de 14px com matiz fixo por slug, nunca avatar nem iniciais.", "section": "colors" },
+      { "name": "The Width Is Weight Rule", "body": "Hierarquia se faz com largura e peso da mesma fonte; não se adiciona segunda família de texto.", "section": "typography" },
+      { "name": "The Mono Is Data Rule", "body": "Mono só para datas, contagens, tamanhos e código. Nunca em rótulo ou botão.", "section": "typography" },
+      { "name": "The Hairline Rule", "body": "Superfícies de página se separam por linha de 1px e tom, nunca por sombra.", "section": "elevation" },
+      { "name": "The Float Only Rule", "body": "Sombra difusa e suave é exclusiva do que flutua sobre a página: modal, aviso, diálogo do editor.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do hierarquizar com largura e peso de Bricolage Grotesque (75% a 100%, 200 a 800) antes de pensar em cor ou tamanho.",
+      "Do usar `acao` (#2a35ff) como única cor de ação e `erro` apenas para falha.",
+      "Do compor texto de estado em par: cor forte sobre o fundo fraco correspondente.",
+      "Do separar áreas com hairline de 1px em `linha`; reservar sombra a modal, aviso e diálogos.",
+      "Do manter botões e busca em pílula e todo o resto em raio 6px (modal 14px).",
+      "Do mostrar datas, contagens e tamanhos em Spline Sans Mono 12px com numerais tabulares.",
+      "Do respeitar `prefers-reduced-motion`: toda animação reduz a 0,01ms.",
+      "Do manter o foco visível: contorno de 2px em `acao` ou linha azul na base nos campos sem caixa."
+    ],
+    "donts": [
+      "Don't introduzir um segundo acento, gradiente ou botão colorido por categoria.",
+      "Don't usar o vermelho como ênfase ou decoração.",
+      "Don't adicionar uma segunda família de texto; o mono nunca entra em rótulos ou botões.",
+      "Don't voltar às cápsulas cinza de webmail genérico nem ao creme com serifa.",
+      "Don't usar avatares, iniciais ou ícones de fonte para contas; use o bloco de alias de 14px e o sprite SVG existente.",
+      "Don't empilhar sombras em cartões de página; superfícies de página são planas.",
+      "Don't fazer o aviso cobrir o botão Enviar dentro do modal.",
+      "Don't traduzir a prévia em nada que não seja o que o destinatário recebe: a folha é branca, sem estilo do app dentro."
+    ]
+  }
+}

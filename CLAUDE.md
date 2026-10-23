@@ -60,6 +60,10 @@ uv run pytest
   - `eml.py` — importar `.eml` e reconstruir `References`
   - `views.py` — redigir/editar/prévia/envio/agendar/rascunho, importar,
     histórico, fila, detalhe de agendado
+  - `contexto.py` + `templatetags/mensagens_ui.py` — contadores do menu lateral e
+    filtros só de apresentação (cor do alias, trecho, data curta)
+  - `static/mensagens/` — `estilo.css` (tokens no topo), `compor.js` (modal de escrita e
+    prévia ao vivo), `app.js`, `editor.js` (Trix), `fontes/` (woff2 próprios)
   - `management/commands/enviar.py` — a porta do operador e de agentes (ssh)
   - `management/commands/despachar_agendados.py` — o que o cron chama
 
@@ -74,7 +78,8 @@ O racional completo está em [docs/decisoes.md](docs/decisoes.md). Em resumo:
 - **O CSS é embutido antes de sanitizar**, e por isso `class`/`<style>`
   sobrevivem.
 - **A prévia não exige destinatário nem valida endereço.** Já quebrou duas
-  vezes por isso.
+  vezes por isso. (O *botão* Enviar é que espera um destinatário — ver
+  [decisoes.md](docs/decisoes.md#destino-no-botao).)
 - **O `hash_previa` é do conteúdo autoral**, com os marcadores intactos.
 - **A lista de marcadores é fechada.**
 - **A prévia não persiste rascunho** — recalcula sobre o mesmo POST. Isso é

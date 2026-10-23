@@ -25,3 +25,8 @@ staticfiles/
 .vscode/
 .idea/
 *.swp
+
+# Impeccable: o que é só de sessão (capturas, esboços de decisão, cache do hook)
+.impeccable/review/
+.impeccable/mocks/
+.impeccable/hook.cache.json
