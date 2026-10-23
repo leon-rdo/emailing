@@ -115,7 +115,8 @@ real**, não no código:
 
 `DATA_DIR` guarda o banco SQLite (contas, aliases, assinaturas, histórico, **a
 fila de agendados e os rascunhos**) e os anexos pendentes — inclusive os das
-mensagens agendadas e dos rascunhos, que precisam sobreviver ao TTL. **Apagar `data/` apaga
+mensagens agendadas e dos rascunhos, que precisam sobreviver ao TTL (o rascunho
+salvo tem prazo próprio: `RASCUNHO_SALVO_EXPIRA_DIAS`, 30 dias sem alteração). **Apagar `data/` apaga
 tudo isso.**
 
 Há backup diário desde 2026-09-07 (`manage.py backup`, cron, 14 cópias em

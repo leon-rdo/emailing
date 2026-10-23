@@ -41,7 +41,8 @@ logger = logging.getLogger(__name__)
 
 # Quem ainda vai precisar dos arquivos. O rascunho entra porque, sem isso, a
 # limpeza diária o deixaria sem anexo ao fim do TTL — e o rascunho só é aberto
-# de novo quando o operador voltar a ele, que pode ser depois.
+# de novo quando o operador voltar a ele, que pode ser depois. Quem o limita é
+# `expirar_rascunhos`, não o TTL dos anexos.
 _COM_ANEXOS_VIVOS = (
     EnvioAgendado.Status.RASCUNHO,
     EnvioAgendado.Status.AGENDADO,
@@ -157,23 +158,45 @@ def reescrever(
     return True
 
 
-def descartar_rascunho(pk: int) -> bool:
+def descartar_rascunho(pk: int, *, parado_desde: datetime | None = None) -> bool:
     """Apaga o rascunho e os seus anexos. `False` se já não era um rascunho.
+
+    Com `parado_desde`, só apaga se ele **continua** sem alteração desde então.
+    É a condição da expiração: entre listar os vencidos e apagar, o operador pode
+    ter voltado e salvado, e um rascunho recém-salvo não pode morrer por ter
+    estado na lista.
 
     Apaga de verdade, não marca como cancelado: descartar é dizer "isto não
     existiu", e um cemitério de rascunhos em `Encerrados` seria ruído. Só
     rascunho — uma mensagem que já esteve na fila deixa rastro, e é por isso que
     ela se **cancela**.
     """
-    linha = EnvioAgendado.objects.filter(pk=pk, status=EnvioAgendado.Status.RASCUNHO).first()
+    alvo = EnvioAgendado.objects.filter(pk=pk, status=EnvioAgendado.Status.RASCUNHO)
+    if parado_desde is not None:
+        alvo = alvo.filter(atualizado_em__lt=parado_desde)
+    linha = alvo.first()
     if linha is None:
         return False
-    apagou, _ = EnvioAgendado.objects.filter(
-        pk=pk, status=EnvioAgendado.Status.RASCUNHO
-    ).delete()
+    apagou, _ = alvo.delete()
     if apagou:
         limpar_rascunho(linha.token_anexos)
     return bool(apagou)
+
+
+def expirar_rascunhos(dias: int, agora: datetime | None = None) -> int:
+    """Apaga os rascunhos sem alteração há mais de `dias`. `0` desliga.
+
+    Chamado antes da limpeza de pastas de anexos (ver `limpar_rascunhos`): assim
+    os arquivos dos vencidos somem junto com eles e a pasta, já fora de
+    `tokens_pendentes()`, nem precisa esperar o TTL dos anexos.
+    """
+    if not dias:
+        return 0
+    limite = (agora or timezone.now()) - timedelta(days=dias)
+    vencidos = EnvioAgendado.objects.filter(
+        status=EnvioAgendado.Status.RASCUNHO, atualizado_em__lt=limite
+    ).values_list("pk", flat=True)
+    return sum(descartar_rascunho(pk, parado_desde=limite) for pk in list(vencidos))
 
 
 def dados_de(agendado: EnvioAgendado) -> DadosRedacao:

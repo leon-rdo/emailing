@@ -300,6 +300,12 @@ ANEXOS_EXTENSOES_BLOQUEADAS = env_lista(
 )
 RASCUNHOS_TTL_DIAS = env_int("RASCUNHOS_TTL_DIAS", 7)
 
+# Dias sem alteração até um **rascunho salvo** (a mensagem, não a pasta de
+# anexos acima) ser apagado pela limpeza diária, junto com os anexos dele. `0`
+# desliga: o rascunho nunca expira. O nome é diferente de `RASCUNHOS_TTL_DIAS`
+# de propósito — são coisas diferentes que o código chama de "rascunho".
+RASCUNHO_SALVO_EXPIRA_DIAS = env_int("RASCUNHO_SALVO_EXPIRA_DIAS", 30)
+
 GUARDAR_CORPO_ENVIADO = env_bool("GUARDAR_CORPO_ENVIADO", True)
 
 DATA_UPLOAD_MAX_NUMBER_FILES = ANEXOS_MAX_ARQUIVOS + 5

@@ -10,8 +10,10 @@ Nomes de domínio em português; `message_id`/`in_reply_to` em inglês porque s�
 nomes de cabeçalho da RFC 5322, não vocabulário do domínio.
 """
 
+from datetime import timedelta
 from email.utils import formataddr
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -334,6 +336,16 @@ class EnvioAgendado(models.Model):
     def editavel(self) -> bool:
         """Dá para mexer enquanto ninguém despachou: rascunho ou ainda na fila."""
         return self.status in (self.Status.RASCUNHO, self.Status.AGENDADO)
+
+    @property
+    def expira_em(self):
+        """Quando a limpeza apaga este rascunho; `None` se não é rascunho ou se
+        a expiração está desligada. Conta a partir da **última alteração**:
+        quem continua mexendo no rascunho não o perde."""
+        dias = settings.RASCUNHO_SALVO_EXPIRA_DIAS
+        if self.status != self.Status.RASCUNHO or not dias:
+            return None
+        return self.atualizado_em + timedelta(days=dias)
 
     @property
     def selo_css(self) -> str:

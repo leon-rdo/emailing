@@ -341,12 +341,31 @@ O corpo exibido no detalhe é o **autoral** — sanitizado, com a assinatura, e 
 os marcadores como escritos. Expandi-los mostraria a hora de agora num
 agendamento que nunca saiu, o que seria uma mentira plausível.
 
-### O anexo de rascunho não expira
+### O rascunho salvo expira, e o prazo é dele — não o dos anexos {#expiracao}
 
-`tokens_pendentes()` protege os anexos de rascunho do TTL pelo mesmo motivo dos
-de agendamento longo: o rascunho é aberto quando o operador voltar, que pode ser
-depois dos 7 dias, e voltaria sem anexo. O preço é que um rascunho esquecido
-guarda os arquivos para sempre. Descartar o rascunho os apaga.
+`tokens_pendentes()` protege os anexos de rascunho do TTL de 7 dias
+(`RASCUNHOS_TTL_DIAS`) pelo mesmo motivo dos de agendamento longo: o rascunho é
+aberto quando o operador voltar, e voltaria sem anexo. Sozinha, essa proteção
+faria um rascunho esquecido guardar os arquivos para sempre — daí a segunda
+regra: **o rascunho sem alteração há `RASCUNHO_SALVO_EXPIRA_DIAS` (30 por padrão,
+`0` desliga) é apagado, junto com os anexos**, pela mesma limpeza diária.
+
+- **Dois prazos, dois nomes.** `RASCUNHOS_TTL_DIAS` é da pasta de anexos
+  abandonada (nunca virou mensagem salva); `RASCUNHO_SALVO_EXPIRA_DIAS` é da
+  mensagem. O segundo tem nome diferente justamente porque "rascunho" já
+  significa as duas coisas no código ([vocabulário](#rascunho)).
+- **Conta a partir da última alteração**, não da criação: quem continua mexendo
+  não perde o rascunho, e salvar de novo adia o prazo. A tela de rascunhos mostra
+  *Expira em*.
+- **Expirar é apagar de verdade**, como descartar (ver acima): não há lixeira.
+- **A expiração roda antes da limpeza de pastas**, em `limpar_rascunhos`, para os
+  anexos dos vencidos saírem de `tokens_pendentes()` antes de a lista ser montada.
+- **O `DELETE` é condicional** (`expirar_rascunhos` → `descartar_rascunho(…,
+  parado_desde=limite)`). Entre listar os vencidos e apagar, o operador pode ter
+  voltado e salvado; um rascunho recém-salvo não morre por ter estado na lista.
+  Há teste dessa corrida.
+- Só rascunho expira. Agendado e cancelado são registro, não trabalho em
+  andamento, e não são tocados.
 
 ---
 

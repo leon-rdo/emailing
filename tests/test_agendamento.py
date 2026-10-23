@@ -572,3 +572,99 @@ def test_cancelar_guarda_a_lista_de_anexos_antes_de_apagar_os_arquivos(
     agendado.refresh_from_db()
     assert listar_anexos(agendado.token_anexos) == []
     assert [(a["nome"], a["tamanho"]) for a in agendado.anexos] == [("nota.pdf", 5)]
+
+
+# ---------------------------------------------------------------------------
+# Expiração de rascunhos salvos
+# ---------------------------------------------------------------------------
+
+
+def _envelhecer(pk, dias):
+    """`atualizado_em` é `auto_now`: só um UPDATE em massa o contorna."""
+    EnvioAgendado.objects.filter(pk=pk).update(
+        atualizado_em=timezone.now() - timedelta(days=dias)
+    )
+
+
+def test_expira_rascunho_parado_e_leva_os_anexos(alias_de_teste, tmp_path, settings):
+    from mensagens.agendamento import expirar_rascunhos
+
+    settings.RASCUNHOS_DIR = tmp_path
+    token = criar_token()
+    salvar_anexo(token, SimpleUploadedFile("a.pdf", b"x"))
+    velho = guardar_rascunho(alias_de_teste, _dados(), token_anexos=token)
+    novo = guardar_rascunho(alias_de_teste, _dados(assunto="Recente"))
+    _envelhecer(velho.pk, 31)
+    _envelhecer(novo.pk, 29)
+
+    assert expirar_rascunhos(30) == 1
+
+    assert not EnvioAgendado.objects.filter(pk=velho.pk).exists()
+    assert not (tmp_path / velho.token_anexos).exists()
+    assert EnvioAgendado.objects.filter(pk=novo.pk).exists()
+
+
+def test_expiracao_zero_desliga(alias_de_teste):
+    from mensagens.agendamento import expirar_rascunhos
+
+    velho = guardar_rascunho(alias_de_teste, _dados())
+    _envelhecer(velho.pk, 3650)
+
+    assert expirar_rascunhos(0) == 0
+    assert EnvioAgendado.objects.filter(pk=velho.pk).exists()
+
+
+def test_expiracao_so_atinge_rascunho(alias_de_teste):
+    """Agendado e cancelado velhos não são rascunhos: nem se tocam."""
+    from mensagens.agendamento import expirar_rascunhos
+
+    na_fila = agendar(alias_de_teste, _dados(), _amanha())
+    cancelado = agendar(alias_de_teste, _dados(), _amanha())
+    cancelar(cancelado.pk)
+    for item in (na_fila, cancelado):
+        _envelhecer(item.pk, 365)
+
+    assert expirar_rascunhos(30) == 0
+    assert EnvioAgendado.objects.count() == 2
+
+
+def test_rascunho_salvo_no_instante_da_expiracao_sobrevive(alias_de_teste):
+    """A corrida: o rascunho estava na lista de vencidos, mas o operador voltou e
+    salvou antes do DELETE. Salvar tem que ganhar."""
+    velho = guardar_rascunho(alias_de_teste, _dados())
+    _envelhecer(velho.pk, 31)
+    limite = timezone.now() - timedelta(days=30)
+
+    # o operador salva depois de o rascunho ter entrado na lista de vencidos
+    assert reescrever(
+        velho.pk, alias_de_teste, _dados(assunto="Retomado"),
+        de=(_RASCUNHO,), para=_RASCUNHO, enviar_em=None, token_anexos="",
+    )
+
+    assert descartar_rascunho(velho.pk, parado_desde=limite) is False
+    assert EnvioAgendado.objects.filter(pk=velho.pk, assunto="Retomado").exists()
+
+
+def test_expira_em_acompanha_a_ultima_alteracao(alias_de_teste, settings):
+    settings.RASCUNHO_SALVO_EXPIRA_DIAS = 30
+    rascunho = guardar_rascunho(alias_de_teste, _dados())
+    assert rascunho.expira_em == rascunho.atualizado_em + timedelta(days=30)
+
+    settings.RASCUNHO_SALVO_EXPIRA_DIAS = 0
+    assert rascunho.expira_em is None
+
+    settings.RASCUNHO_SALVO_EXPIRA_DIAS = 30
+    assert agendar(alias_de_teste, _dados(), _amanha()).expira_em is None
+
+
+def test_comando_de_limpeza_expira_rascunhos_conforme_o_env(alias_de_teste, settings):
+    from django.core.management import call_command
+
+    settings.RASCUNHO_SALVO_EXPIRA_DIAS = 10
+    settings.RASCUNHOS_DIR = "/tmp/emailing-teste-inexistente"
+    velho = guardar_rascunho(alias_de_teste, _dados())
+    _envelhecer(velho.pk, 11)
+
+    call_command("limpar_rascunhos")
+
+    assert not EnvioAgendado.objects.filter(pk=velho.pk).exists()

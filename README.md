@@ -162,7 +162,9 @@ a mensagem sai, que é o que se espera.
   sem cancelar, para retomar depois.
 - **Rascunhos.** *Salvar rascunho* guarda a mensagem como está — sem prévia, sem
   destinatário, sem data. Ficam em `/rascunhos/`, nunca saem sozinhos, e dali se
-  abre para enviar ou agendar. Os anexos ficam guardados junto.
+  abre para enviar ou agendar. Os anexos ficam guardados junto. Rascunho sem
+  alteração há `RASCUNHO_SALVO_EXPIRA_DIAS` (padrão 30; `0` = nunca) é apagado
+  pela limpeza diária; salvar de novo adia o prazo.
 - **Detalhes.** `/agendados/<id>/` mostra tudo sobre uma mensagem guardada em
   qualquer estado, inclusive cancelada: destinatários, cabeçalhos de resposta,
   tentativas, erro, o corpo e a lista de anexos (os arquivos são apagados ao

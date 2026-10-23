@@ -7,7 +7,8 @@
 	<h1>Rascunhos</h1>
 	<p class="nota">
 		Mensagens guardadas para continuar depois. Nada aqui sai sozinho: para enviar ou
-		agendar, abra o rascunho. Os anexos ficam guardados junto.
+		agendar, abra o rascunho. Os anexos ficam guardados junto. Rascunho sem alteração
+		por muito tempo é apagado sozinho (veja “Expira em”); salvar de novo adia o prazo.
 	</p>
 
 	{% if rascunhos %}
@@ -16,6 +17,7 @@
 			<thead>
 				<tr>
 					<th>Alterado em</th>
+					<th>Expira em</th>
 					<th>Alias</th>
 					<th>Para</th>
 					<th>Assunto</th>
@@ -26,6 +28,7 @@
 				{% for item in rascunhos %}
 				<tr>
 					<td>{{ item.atualizado_em|date:"d/m/Y H:i" }}</td>
+					<td>{{ item.expira_em|date:"d/m/Y"|default:"nunca" }}</td>
 					<td><code>{{ item.alias.slug }}</code></td>
 					<td>{{ item.destinatarios|default:"—"|truncatechars:50 }}</td>
 					<td><a href="{% url 'mensagens:editar' item.pk %}">{{ item.assunto|default:"(sem assunto)"|truncatechars:50 }}</a></td>

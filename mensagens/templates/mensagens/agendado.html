@@ -37,6 +37,7 @@
 		{% endif %}
 		<tr><th>Criado em</th><td>{{ item.criado_em|date:"d/m/Y H:i" }}</td></tr>
 		<tr><th>Última alteração</th><td>{{ item.atualizado_em|date:"d/m/Y H:i" }}</td></tr>
+		{% if item.expira_em %}<tr><th>Expira em</th><td>{{ item.expira_em|date:"d/m/Y" }} <span class="nota">(se não for alterado até lá)</span></td></tr>{% endif %}
 		{% if item.tentativas %}
 		<tr><th>Tentativas</th><td>{{ item.tentativas }}{% if item.ultima_tentativa_em %}, a última em {{ item.ultima_tentativa_em|date:"d/m/Y H:i" }}{% endif %}</td></tr>
 		{% endif %}
