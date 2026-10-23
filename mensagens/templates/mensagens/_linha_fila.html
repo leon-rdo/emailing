@@ -1,7 +1,7 @@
 {% load mensagens_ui %}
 {% comment %}`pagina` = "agendados" | "rascunhos". `fundo` desliga link e botões (modal por cima).{% endcomment %}
 <li class="item{% if item.tentativas %} falhou{% endif %}">
-	<span class="bloco-alias" style="--h:{{ item.alias.slug|matiz }}" title="{{ item.alias.slug }}"></span>
+	<span class="bloco-alias" style="--h:{{ item.alias.dominio|matiz }}" title="{{ item.alias.remetente }}"></span>
 	<span class="quem" title="{{ item.destinatarios }}">
 		{% if fundo %}{{ item.para|primeiro_destinatario }}
 		{% elif pagina == "rascunhos" %}<a href="{% url 'mensagens:editar' item.pk %}">{{ item.para|primeiro_destinatario }}</a>
@@ -11,8 +11,9 @@
 		<span class="assunto">{{ item.assunto|default:"(sem assunto)" }}</span>
 		{% with t=item.corpo_html|trecho:100 %}{% if t %}<span class="trecho"> — {{ t }}</span>{% endif %}{% endwith %}
 	</span>
+	<span class="via-end" title="Sai por {{ item.alias.remetente }}">{{ item.alias.endereco }}</span>
 	<span class="estado">
-		{% if item.tentativas %}<span class="selo falhou" title="{{ item.erro }}">{{ item.tentativas }}ª tentativa falhou</span>
+		{% if item.tentativas %}<span class="selo falhou" title="{{ item.erro }}">{{ item.tentativas }}ª falhou</span>
 		{% elif pagina == "rascunhos" and item.expira_em %}<span class="nota mono" title="Apagado sozinho se não for alterado até lá">expira {{ item.expira_em|date:"d/m" }}</span>
 		{% elif pagina == "encerrados" %}<span class="selo {{ item.selo_css }}" {% if item.erro %}title="{{ item.erro }}"{% endif %}>{{ item.get_status_display }}</span>{% endif %}
 	</span>
@@ -21,7 +22,7 @@
 
 	{% if not fundo %}
 	{% if pagina == "agendados" %}
-	<span class="acoes-linha">
+	<span class="acoes-linha acoes-fila">
 		<a class="botao icone" href="{% url 'mensagens:editar' item.pk %}" title="Editar" aria-label="Editar agendamento"><svg class="ico" aria-hidden="true"><use href="#i-escrever"/></svg></a>
 		<form method="post" action="{% url 'mensagens:cancelar_agendado' item.pk %}" class="embutido" data-confirmar="Cancelar este agendamento? A mensagem não sairá.">
 			{% csrf_token %}
@@ -29,7 +30,7 @@
 		</form>
 	</span>
 	{% elif pagina == "rascunhos" %}
-	<span class="acoes-linha">
+	<span class="acoes-linha acoes-fila">
 		<form method="post" action="{% url 'mensagens:descartar_rascunho' item.pk %}" class="embutido" data-confirmar="Descartar este rascunho? Não dá para desfazer.">
 			{% csrf_token %}
 			<button type="submit" class="icone" title="Descartar rascunho" aria-label="Descartar rascunho"><svg class="ico" aria-hidden="true"><use href="#i-lixo"/></svg></button>

@@ -43,7 +43,7 @@ from .forms import (
     dados_do_formulario,
 )
 from .marcadores import GLOSSARIO
-from .models import EnvioAgendado, RegistroEnvio
+from .models import ContaEmail, EnvioAgendado, RegistroEnvio
 from .montagem import (
     calcular_hash_previa,
     emoldurar_para_previa,
@@ -217,6 +217,11 @@ def redigir(request, pk=None):
         previa = _previa_inicial(campos, token, aliases)
     else:
         inicial = {"alias": aliases[0].slug} if aliases else {}
+        caixa = _caixa_da_requisicao(request)
+        if caixa:
+            da_caixa = next((a for a in aliases if a.conta_id == caixa.pk), None)
+            if da_caixa:
+                inicial["alias"] = da_caixa.slug
 
         importado = request.session.pop("rascunho_importado", None)
         if importado:
@@ -265,6 +270,12 @@ def redigir(request, pk=None):
             "menu_ativo": fundo,
         },
     )
+
+
+def _caixa_da_requisicao(request):
+    """A caixa (conta) escolhida no menu, via `?caixa=<id>`, ou `None`."""
+    bruto = request.GET.get("caixa", "")
+    return ContaEmail.objects.filter(pk=bruto).first() if bruto.isdigit() else None
 
 
 def _fundo_do_modal(linha):
@@ -430,9 +441,11 @@ def agendados(request):
     não é nem uma coisa nem outra — tem página própria.
     """
     Status = EnvioAgendado.Status
-    pendentes = EnvioAgendado.objects.filter(status=Status.AGENDADO).select_related("alias")
+    caixa = _caixa_da_requisicao(request)
+    todos = EnvioAgendado.objects.filter(alias__conta=caixa) if caixa else EnvioAgendado.objects
+    pendentes = todos.filter(status=Status.AGENDADO).select_related("alias")
     encerrados = (
-        EnvioAgendado.objects.exclude(status__in=(Status.AGENDADO, Status.RASCUNHO))
+        todos.exclude(status__in=(Status.AGENDADO, Status.RASCUNHO))
         .select_related("alias")
         .order_by("-enviar_em")[:25]
     )
@@ -441,7 +454,7 @@ def agendados(request):
         {
             "pendentes": pendentes,
             "encerrados": encerrados,
-            "total_rascunhos": EnvioAgendado.objects.filter(status=Status.RASCUNHO).count(),
+            "total_rascunhos": todos.filter(status=Status.RASCUNHO).count(),
         },
     )
 
@@ -492,6 +505,9 @@ def rascunhos(request):
         .select_related("alias")
         .order_by("-atualizado_em")
     )
+    caixa = _caixa_da_requisicao(request)
+    if caixa:
+        lista = lista.filter(alias__conta=caixa)
     return render(request, "mensagens/rascunhos.html", {"rascunhos": lista})
 
 
@@ -597,6 +613,11 @@ def _importar_eml(request):
 
 def historico(request):
     lista = RegistroEnvio.objects.all()
+    caixa = _caixa_da_requisicao(request)
+    if caixa:
+        # O registro guarda o slug do alias, não a conta: a caixa é o conjunto de
+        # aliases dela.
+        lista = lista.filter(alias__in=caixa.aliases.values_list("slug", flat=True))
     q = request.GET.get("q", "").strip()[:100]
     if q:
         lista = lista.filter(

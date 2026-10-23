@@ -21,7 +21,7 @@
 	</ul>
 </div>
 
-<dialog class="escrever-modal" open aria-labelledby="titulo-escrever"
+<dialog class="escrever-modal" open tabindex="-1" aria-labelledby="titulo-escrever"
 	data-url-previa="{% url 'mensagens:previa_ajax' %}"
 	data-url-fechar="{% if fundo == 'rascunhos' %}{% url 'mensagens:rascunhos' %}{% elif fundo == 'agendados' %}{% url 'mensagens:agendados' %}{% else %}{% url 'mensagens:historico' %}{% endif %}"
 	data-sujo="{% if request.method == 'POST' %}1{% endif %}" data-aba="escrever">

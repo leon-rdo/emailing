@@ -13,7 +13,7 @@ register = template.Library()
 
 # Matizes que um alias pode ter. Fora o vermelho (10–40) de propósito: vermelho é
 # a cor de "falhou", e um alias vermelho esconderia um envio que deu errado.
-_MATIZES = (55, 150, 180, 215, 255, 290, 325, 100)
+_MATIZES = (55, 150, 180, 215, 255, 290, 325)
 
 
 @register.filter
@@ -82,3 +82,21 @@ def quando(momento) -> str:
     if abs(dias) > 300:
         return local.strftime("%d/%m/%Y")
     return local.strftime(f"%d/%m {hora}")
+
+
+@register.filter
+def dominio_de(valor) -> str:
+    """O domínio de "Nome <a@b.com>" ou "a@b.com": o que agrupa as caixas na lista."""
+    texto = str(valor or "")
+    if "<" in texto:
+        texto = texto.rsplit("<", 1)[1].rstrip(">")
+    return texto.rpartition("@")[2].strip().lower()
+
+
+@register.filter
+def endereco_de(valor) -> str:
+    """O endereço puro de "Nome <a@b.com>" (ou o próprio texto, se já for puro)."""
+    texto = str(valor or "").strip()
+    if "<" in texto:
+        texto = texto.rsplit("<", 1)[1].rstrip(">")
+    return texto.strip()

@@ -60,10 +60,19 @@
 	// --- foco: no primeiro campo que ainda falta
 	var assunto = campo("assunto");
 	var para = campo("para");
+	// No toque, focar sozinho abriria o teclado por cima da tela antes de ela ser vista.
 	var trixEl = document.getElementById("editor-trix");
-	if (para && !para.value) para.focus();
-	else if (assunto && !assunto.value) assunto.focus();
-	else if (trixEl) trixEl.focus(); // mensagem já preenchida (editar): direto no texto
+	if (window.matchMedia("(pointer: coarse)").matches) {
+		modal.focus({ preventScroll: true }); // o foco inicial iria para o botão de fechar
+	} else {
+		if (para && !para.value) para.focus();
+		else if (assunto && !assunto.value) assunto.focus();
+		else if (trixEl) {
+			// mensagem já preenchida (editar): direto no texto, assim que o Trix existir
+			if (trixEl.editor) trixEl.focus();
+			else trixEl.addEventListener("trix-initialize", function () { trixEl.focus(); }, { once: true });
+		}
+	}
 
 	// --- o assunto vira cartaz e condensa ao encher
 	var bloco = assunto.parentNode;

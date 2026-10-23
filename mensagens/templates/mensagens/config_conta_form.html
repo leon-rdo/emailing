@@ -1,0 +1,73 @@
+{% extends "mensagens/base.html" %}
+{% load static %}
+
+{% block titulo %}{% if conta %}{{ conta.nome }}{% else %}Nova conta{% endif %} — Emailing{% endblock %}
+
+{% block conteudo %}
+<article class="leitura config-form">
+	<a class="voltar" href="{% url 'mensagens:config_contas' %}"><svg class="ico" aria-hidden="true"><use href="#i-voltar"/></svg>Contas SMTP</a>
+	<h1>{% if conta %}{{ conta.nome }}{% else %}Nova conta{% endif %}</h1>
+
+	<form method="post" novalidate data-url-testar="{% url 'mensagens:config_conta_testar' %}" data-pk="{{ conta.pk|default:'' }}" class="form-conta">
+		{% csrf_token %}
+		{% if form.non_field_errors %}<ul class="errorlist">{% for erro in form.non_field_errors %}<li>{{ erro }}</li>{% endfor %}</ul>{% endif %}
+
+		{% if not conta %}
+		<div class="predefinicoes" role="group" aria-label="Preencher servidor e porta">
+			<span class="mudo">Preencher como</span>
+			<button type="button" class="link" data-host="smtp.hostinger.com" data-porta="465" data-cifra="ssl">Hostinger</button>
+			<button type="button" class="link" data-host="smtp.titan.email" data-porta="465" data-cifra="ssl">Titan</button>
+			<button type="button" class="link" data-host="smtp.gmail.com" data-porta="587" data-cifra="tls">Gmail</button>
+			<button type="button" class="link" data-host="smtp.office365.com" data-porta="587" data-cifra="tls">Outlook</button>
+		</div>
+		{% endif %}
+
+		<h2 class="grupo">Servidor</h2>
+		{% include "mensagens/_campo.html" with campo=form.nome %}
+		<div class="par">
+			{% include "mensagens/_campo.html" with campo=form.host %}
+			{% include "mensagens/_campo.html" with campo=form.porta %}
+		</div>
+		<div class="campo">
+			<span class="rotulo">Cifra</span>
+			<div class="opcoes" role="radiogroup" aria-label="Cifra">
+				{% for r in form.cifra %}<label class="opcao">{{ r.tag }}<span>{{ r.choice_label }}</span></label>{% endfor %}
+			</div>
+			{% for erro in form.cifra.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+		</div>
+
+		<h2 class="grupo">Acesso</h2>
+		<div class="par">
+			{% include "mensagens/_campo.html" with campo=form.usuario %}
+			<div class="campo">
+				<label for="{{ form.senha.id_for_label }}">{{ form.senha.label }}</label>
+				{{ form.senha }}
+				<small>{% if conta %}Deixe em branco para manter a senha atual.{% else %}Fica guardada cifrada e nunca volta para a tela.{% endif %}</small>
+				{% for erro in form.senha.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+			</div>
+		</div>
+		<div class="teste-conexao">
+			<button type="button" id="testar-conexao">Testar conexão</button>
+			<span class="resultado-teste" role="status"></span>
+			<small>Conecta e autentica; não envia nenhuma mensagem.</small>
+		</div>
+
+		<h2 class="grupo">Envio</h2>
+		{% include "mensagens/_campo.html" with campo=form.dominios_permitidos %}
+		<div class="par">
+			{% include "mensagens/_campo.html" with campo=form.envelope_from %}
+			{% include "mensagens/_campo.html" with campo=form.timeout %}
+		</div>
+		<label class="alternar alternar-grande">{{ form.ativa }} Conta ativa <span class="mudo">(desativada, nenhum alias dela envia)</span></label>
+
+		<div class="acoes">
+			<button type="submit" class="primario">Salvar conta</button>
+			<a class="botao" href="{% url 'mensagens:config_contas' %}">Cancelar</a>
+		</div>
+	</form>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'mensagens/config.js' %}"></script>
+{% endblock %}

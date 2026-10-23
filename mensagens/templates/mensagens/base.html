@@ -16,30 +16,49 @@
 	<div class="app">
 		<aside class="menu">
 			<a class="marca" href="{% url 'mensagens:historico' %}">emailing</a>
-			<a class="escrever" href="{% url 'mensagens:inicio' %}">
+			<a class="escrever" href="{% url 'mensagens:inicio' %}{{ menu_caixa_qs }}">
 				<svg class="ico" aria-hidden="true"><use href="#i-escrever"/></svg>
 				Escrever
 			</a>
+			<button type="button" class="menu-botao" aria-expanded="false" aria-controls="menu-painel" aria-label="Menu">
+				<svg class="ico" aria-hidden="true"><use href="#i-menu"/></svg>
+			</button>
+
+			<div class="menu-painel" id="menu-painel">
 
 			<nav aria-label="Caixas">
 				<ul>
-					<li><a class="menu-item" href="{% url 'mensagens:historico' %}"{% if menu_ativo == "enviados" %} aria-current="page"{% endif %}>
+					<li><a class="menu-item" href="{% url 'mensagens:historico' %}{{ menu_caixa_qs }}"{% if menu_ativo == "enviados" %} aria-current="page"{% endif %}>
 						<svg class="ico" aria-hidden="true"><use href="#i-enviados"/></svg><span class="rotulo-item">Enviados</span></a></li>
-					<li><a class="menu-item" href="{% url 'mensagens:agendados' %}"{% if menu_ativo == "agendados" %} aria-current="page"{% endif %}>
+					<li><a class="menu-item" href="{% url 'mensagens:agendados' %}{{ menu_caixa_qs }}"{% if menu_ativo == "agendados" %} aria-current="page"{% endif %}>
 						<svg class="ico" aria-hidden="true"><use href="#i-agendados"/></svg><span class="rotulo-item">Agendados</span>
 						{% if menu_agendados %}<span class="conta">{{ menu_agendados }}</span>{% endif %}</a></li>
-					<li><a class="menu-item" href="{% url 'mensagens:rascunhos' %}"{% if menu_ativo == "rascunhos" %} aria-current="page"{% endif %}>
+					<li><a class="menu-item" href="{% url 'mensagens:rascunhos' %}{{ menu_caixa_qs }}"{% if menu_ativo == "rascunhos" %} aria-current="page"{% endif %}>
 						<svg class="ico" aria-hidden="true"><use href="#i-rascunhos"/></svg><span class="rotulo-item">Rascunhos</span>
 						{% if menu_rascunhos %}<span class="conta">{{ menu_rascunhos }}</span>{% endif %}</a></li>
 				</ul>
 			</nav>
 
+			{% if menu_caixas %}
+			<p class="menu-grupo">Caixas</p>
+			<nav aria-label="Caixas de e-mail">
+				<ul>
+					<li><a class="menu-item" href="{{ menu_todas_url }}"{% if menu_em_lista and not menu_caixa %} aria-current="true"{% endif %}>
+						<span class="bloco-alias bloco-todas"></span><span class="rotulo-item">Todas as caixas</span></a></li>
+					{% for c in menu_caixas %}
+					<li><a class="menu-item" href="{{ c.url }}"{% if c.ativa %} aria-current="true"{% endif %}>
+						<span class="bloco-alias" style="--h:{{ c.matiz }}"></span><span class="rotulo-item">{{ c.nome }}</span></a></li>
+					{% endfor %}
+				</ul>
+			</nav>
+			{% endif %}
+
 			<p class="menu-grupo">Configurações</p>
 			<nav aria-label="Configurações">
 				<ul>
-					<li><a class="menu-item" href="{% url 'admin:mensagens_contaemail_changelist' %}">
+					<li><a class="menu-item" href="{% url 'mensagens:config_contas' %}"{% if menu_ativo == "contas" %} aria-current="page"{% endif %}>
 						<svg class="ico" aria-hidden="true"><use href="#i-contas"/></svg><span class="rotulo-item">Contas SMTP</span></a></li>
-					<li><a class="menu-item" href="{% url 'admin:mensagens_alias_changelist' %}">
+					<li><a class="menu-item" href="{% url 'mensagens:config_aliases' %}"{% if menu_ativo == "aliases" %} aria-current="page"{% endif %}>
 						<svg class="ico" aria-hidden="true"><use href="#i-aliases"/></svg><span class="rotulo-item">Aliases e assinaturas</span></a></li>
 					<li><a class="menu-item" href="{% url 'admin:index' %}">
 						<svg class="ico" aria-hidden="true"><use href="#i-admin"/></svg><span class="rotulo-item">Administração</span></a></li>
@@ -52,6 +71,7 @@
 					<svg class="ico" aria-hidden="true"><use href="#i-sair"/></svg><span class="rotulo-item">Sair <span class="mudo">({{ user.get_username }})</span></span>
 				</button>
 			</form>
+			</div>
 		</aside>
 
 		<main class="principal">

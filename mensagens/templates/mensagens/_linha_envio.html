@@ -1,6 +1,6 @@
 {% load mensagens_ui %}
 <li class="item{% if item.status == 'falhou' %} falhou{% endif %}">
-	<span class="bloco-alias" style="--h:{{ item.alias|matiz }}" title="{{ item.alias }}"></span>
+	<span class="bloco-alias" style="--h:{{ item.remetente|dominio_de|matiz }}" title="{{ item.remetente }}"></span>
 	<span class="quem" title="{{ item.para }}">
 		{% if fundo %}{{ item.para|primeiro_destinatario }}{% else %}<a href="{% url 'mensagens:registro' item.pk %}">{{ item.para|primeiro_destinatario }}</a>{% endif %}
 	</span>
@@ -8,6 +8,7 @@
 		<span class="assunto">{{ item.assunto|default:"(sem assunto)" }}</span>
 		{% with t=item.corpo_html|trecho:100 %}{% if t %}<span class="trecho"> — {{ t }}</span>{% endif %}{% endwith %}
 	</span>
+	<span class="via-end" title="Enviado por {{ item.remetente }}">{{ item.remetente|endereco_de }}</span>
 	<span class="estado">{% if item.status != "enviado" %}<span class="selo {{ item.selo_css }}">{{ item.get_status_display }}</span>{% endif %}</span>
 	<time class="quando" datetime="{{ item.criado_em|date:'c' }}" title="{{ item.criado_em|date:'d/m/Y H:i:s' }}">{{ item.criado_em|quando }}</time>
 	{% if not fundo and item.status == "enviado" %}

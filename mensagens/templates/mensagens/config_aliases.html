@@ -1,0 +1,46 @@
+{% extends "mensagens/base.html" %}
+{% load mensagens_ui %}
+
+{% block titulo %}Aliases e assinaturas — Emailing{% endblock %}
+
+{% block conteudo %}
+<header class="cabeca">
+	<h1>Aliases e assinaturas</h1>
+	<a class="botao primario cabeca-acao" href="{% url 'mensagens:config_alias_novo' %}">
+		<svg class="ico" aria-hidden="true"><use href="#i-escrever"/></svg>Novo alias
+	</a>
+</header>
+
+<div class="conteudo">
+	<p class="nota">
+		O alias é o endereço que aparece no <em>De</em>; a mensagem sai pela conta da caixa dele.
+		A assinatura de cada alias é anexada ao fim de toda mensagem enviada por ele.
+	</p>
+
+	{% for conta in contas %}
+	<h2 class="secao secao-caixa">
+		<span class="bloco-alias" style="--h:{{ conta.dominios.0|default:conta.nome|matiz }}"></span>
+		{{ conta.nome }}
+		<a class="mais" href="{% url 'mensagens:config_alias_novo' %}?conta={{ conta.pk }}">Novo alias nesta caixa</a>
+	</h2>
+	<ul class="lista">
+		{% for alias in conta.aliases.all %}
+		<li class="linha-config">
+			<span class="bloco-alias" style="--h:{{ alias.dominio|matiz }}"></span>
+			<span class="config-nome">
+				<a href="{% url 'mensagens:config_alias' alias.pk %}">{{ alias.endereco }}</a>
+				<span class="mudo">{{ alias.nome_exibicao|default:"sem nome de exibição" }}</span>
+			</span>
+			<span class="config-detalhe mono">{{ alias.slug }}</span>
+			<span class="config-detalhe">{% if alias.assinatura_html %}assinatura de {{ alias.assinatura_html|length|filesizeformat }}{% else %}sem assinatura{% endif %}</span>
+			<span class="estado">{% if alias.ativo %}<span class="selo enviado">Ativo</span>{% else %}<span class="selo cancelado">Inativo</span>{% endif %}</span>
+		</li>
+		{% empty %}
+		<li class="linha-config linha-vazia"><span></span><span class="mudo">Nenhum alias nesta caixa.</span></li>
+		{% endfor %}
+	</ul>
+	{% empty %}
+	<div class="vazio"><strong>Cadastre uma conta primeiro.</strong>Todo alias sai por uma caixa. <a href="{% url 'mensagens:config_conta_nova' %}">Nova conta</a>.</div>
+	{% endfor %}
+</div>
+{% endblock %}

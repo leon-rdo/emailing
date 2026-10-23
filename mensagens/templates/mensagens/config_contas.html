@@ -1,0 +1,40 @@
+{% extends "mensagens/base.html" %}
+{% load mensagens_ui %}
+
+{% block titulo %}Contas SMTP — Emailing{% endblock %}
+
+{% block conteudo %}
+<header class="cabeca">
+	<h1>Contas SMTP</h1>
+	<span class="total">{{ contas|length }} caixa{{ contas|length|pluralize }}</span>
+	<a class="botao primario cabeca-acao" href="{% url 'mensagens:config_conta_nova' %}">
+		<svg class="ico" aria-hidden="true"><use href="#i-escrever"/></svg>Nova conta
+	</a>
+</header>
+
+<div class="conteudo">
+	<p class="nota">
+		Cada conta é uma caixa real que autentica no servidor SMTP. Os aliases saem por ela:
+		o provedor cobra por caixa, não por endereço de saída.
+	</p>
+
+	{% if contas %}
+	<ul class="lista">
+		{% for conta in contas %}
+		<li class="linha-config">
+			<span class="bloco-alias" style="--h:{{ conta.dominios.0|default:conta.nome|matiz }}"></span>
+			<span class="config-nome">
+				<a href="{% url 'mensagens:config_conta' conta.pk %}">{{ conta.nome }}</a>
+				<span class="mudo">{{ conta.usuario }}</span>
+			</span>
+			<span class="config-detalhe mono">{{ conta.host }}:{{ conta.porta }} · {% if conta.usar_ssl %}SSL{% else %}STARTTLS{% endif %}</span>
+			<span class="config-detalhe">{{ conta.total_aliases }} alias{{ conta.total_aliases|pluralize:",es" }}</span>
+			<span class="estado">{% if conta.ativa %}<span class="selo enviado">Ativa</span>{% else %}<span class="selo cancelado">Inativa</span>{% endif %}</span>
+		</li>
+		{% endfor %}
+	</ul>
+	{% else %}
+	<div class="vazio"><strong>Nenhuma conta ainda.</strong>Cadastre a caixa que vai autenticar no SMTP; depois crie os aliases dela. <a href="{% url 'mensagens:config_conta_nova' %}">Nova conta</a>.</div>
+	{% endif %}
+</div>
+{% endblock %}

@@ -6,10 +6,11 @@ from email.utils import formataddr, getaddresses, parseaddr
 from django import forms
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import EmailValidator
+from django.core.validators import EmailValidator, MaxLengthValidator
 from django_otp import devices_for_user
 from django_otp.forms import OTPAuthenticationForm
 
+from .models import Alias, ContaEmail
 from .montagem import DadosRedacao
 
 # O `datetime-local` do navegador manda "2026-09-10T09:00", que não está nos
@@ -32,6 +33,17 @@ def analisar_enviar_em(bruto: str) -> datetime:
     formato que você usa menos.
     """
     return forms.DateTimeField(input_formats=FORMATOS_ENVIAR_EM).clean(bruto)
+
+
+def opcoes_de_alias(aliases) -> list:
+    """Opções do seletor "De". Com mais de uma caixa, agrupadas por caixa
+    (`<optgroup>`): é assim que se vê de qual conta cada endereço sai."""
+    contas: dict[str, list] = {}
+    for alias in aliases:
+        contas.setdefault(alias.conta.nome, []).append((alias.slug, str(alias)))
+    if len(contas) <= 1:
+        return [opcao for lista in contas.values() for opcao in lista]
+    return list(contas.items())
 
 
 def dados_do_formulario(form) -> DadosRedacao:
@@ -178,7 +190,7 @@ class FormularioRedacao(forms.Form):
 
     def __init__(self, *args, aliases, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields["alias"].choices = [(a.slug, str(a)) for a in aliases]
+        self.fields["alias"].choices = opcoes_de_alias(aliases)
         # O rótulo das linhas de endereço fica na tela, então o campo não repete
         # o nome; o que ajuda é dizer o formato e desligar o que atrapalha.
         for campo in ("para", "cc", "cco"):
@@ -186,7 +198,7 @@ class FormularioRedacao(forms.Form):
                 {"autocomplete": "off", "spellcheck": "false", "inputmode": "email"}
             )
         self.fields["para"].widget.attrs["placeholder"] = (
-            "nome@dominio.com, outro@dominio.com"
+            "nome@dominio.com"
         )
         self.fields["assunto"].widget.attrs.update(
             {"autocomplete": "off", "placeholder": "Assunto"}
@@ -263,3 +275,91 @@ class FormularioPrevia(FormularioRedacao):
         # `ok:false` e congelaria a prévia. A data não é conteúdo — não entra no
         # HTML nem no hash — então a prévia simplesmente não a conhece.
         del self.fields["enviar_em"]
+
+
+class FormularioConta(forms.ModelForm):
+    """Uma caixa que autentica no SMTP.
+
+    A senha nunca volta para a tela: o campo sai sempre vazio e só grava quando
+    algo novo é digitado. As duas caixas de seleção do modelo (`usar_tls` e
+    `usar_ssl`, mutuamente exclusivas) viram uma escolha só — assim o estado
+    inválido "as duas" nem existe na tela.
+    """
+
+    CIFRAS = [("tls", "STARTTLS (porta 587)"), ("ssl", "SSL/TLS direto (porta 465)")]
+
+    senha = forms.CharField(
+        label="Senha", required=False,
+        widget=forms.PasswordInput(render_value=False, attrs={"autocomplete": "new-password"}),
+    )
+    cifra = forms.ChoiceField(label="Cifra", choices=CIFRAS, widget=forms.RadioSelect)
+
+    class Meta:
+        model = ContaEmail
+        fields = [
+            "nome", "host", "porta", "usuario", "senha", "cifra", "timeout",
+            "dominios_permitidos", "envelope_from", "ativa",
+        ]
+        labels = {
+            "nome": "Nome", "host": "Servidor SMTP", "porta": "Porta",
+            "usuario": "Conta que autentica", "timeout": "Timeout (segundos)",
+            "dominios_permitidos": "Domínios permitidos", "envelope_from": "Envelope fixo",
+            "ativa": "Conta ativa",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk is None:
+            self.fields["senha"].required = True
+            self.fields["cifra"].initial = "ssl"
+        else:
+            self.fields["cifra"].initial = "ssl" if self.instance.usar_ssl else "tls"
+
+    def clean(self):
+        limpos = super().clean()
+        cifra = limpos.get("cifra")
+        if cifra:
+            self.instance.usar_ssl = cifra == "ssl"
+            self.instance.usar_tls = cifra == "tls"
+        return limpos
+
+    def save(self, commit=True):
+        conta = super().save(commit=False)
+        nova = self.cleaned_data.get("senha")
+        if nova:
+            conta.senha = nova  # o setter do modelo cifra
+        if commit:
+            conta.save()
+        return conta
+
+
+class FormularioAlias(forms.ModelForm):
+    """Um endereço de saída e a assinatura dele.
+
+    O identificador (`slug`) não muda depois de criado: é o que o histórico, os
+    agendamentos e a linha de comando usam para achar o alias.
+    """
+
+    class Meta:
+        model = Alias
+        fields = [
+            "conta", "slug", "endereco", "nome_exibicao", "reply_to",
+            "assinatura_html", "ativo", "ordem",
+        ]
+        labels = {
+            "conta": "Caixa", "slug": "Identificador", "endereco": "Endereço",
+            "nome_exibicao": "Nome de exibição", "reply_to": "Reply-To",
+            "assinatura_html": "Assinatura (HTML)", "ativo": "Alias ativo", "ordem": "Ordem",
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["assinatura_html"].widget = forms.Textarea(
+            attrs={"spellcheck": "false", "autocapitalize": "off", "wrap": "off"}
+        )
+        self.fields["assinatura_html"].validators.append(MaxLengthValidator(60000))
+        if self.instance.pk:
+            self.fields["slug"].disabled = True
+            self.fields["slug"].help_text = (
+                "Não muda depois de criado: o histórico e a linha de comando usam este nome."
+            )

@@ -281,3 +281,21 @@ Grupos achatados em fundo papel, botões de 32px separados por hairline, hover `
 - **Don't** traduzir a prévia em nada que não seja o que o destinatário recebe: a folha é branca, sem estilo do app dentro.
 
 _Não canonizado: nenhum defeito estrutural observado. Pendências do build (não regras): o CSS de telas estreitas declara `.menu` duas vezes (flex-wrap e overflow redundantes) e há regras soltas no fim do arquivo fora da ordem de seções; o contrato descrevia modal de 1020px e prévia de 420px, e o build usa 1280px e 46%._
+
+## Atualização: caixas, configurações e celular
+
+Acréscimos posteriores ao primeiro registro; o detector ainda os lista como fora da escala
+dos tokens acima, e é por isso que estão escritos aqui.
+
+- **Cor da caixa:** o bloco de 14px de cada linha usa `oklch(58% .16 <matiz>)`, com o matiz
+  vindo do domínio do endereço de saída entre sete valores fixos (55, 150, 180, 215, 255,
+  290, 325), nunca o vermelho (reservado para falha). "Todas as caixas" usa um conic-gradient
+  com quatro desses matizes.
+- **Texto pequeno de apoio:** 13px (dicas de campo, rótulos do menu, botões segmentados);
+  títulos de seção de configuração em 17px e `font-stretch: 85%`; o título da página cai de
+  36px para 32px no celular.
+- **Raios:** 8px nos botões segmentados e na cifra (dentro do contêiner de 10px) e 3px nos
+  blocos de cor; todo o resto segue 6/14/pílula.
+- **Celular (até 900px):** barra fixa de 56px com a gaveta de navegação, alvos de toque de
+  44px, ações da fila sempre visíveis, assunto em 34px, o modal de escrita em tela cheia com
+  abas Escrever/Prévia.

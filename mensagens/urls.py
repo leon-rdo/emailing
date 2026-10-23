@@ -1,6 +1,7 @@
 from django.urls import path
 
 from . import views
+from . import views_configuracoes as config
 
 app_name = "mensagens"
 
@@ -18,4 +19,16 @@ urlpatterns = [
     path("rascunhos/<int:pk>/descartar/", views.descartar, name="descartar_rascunho"),
     path("historico/", views.historico, name="historico"),
     path("historico/<int:pk>/", views.registro, name="registro"),
+    path("configuracoes/", config.indice, name="configuracoes"),
+    path("configuracoes/contas/", config.contas, name="config_contas"),
+    path("configuracoes/contas/nova/", config.conta_form, name="config_conta_nova"),
+    path("configuracoes/contas/testar/", config.testar_conta, name="config_conta_testar"),
+    path("configuracoes/contas/<int:pk>/", config.conta_form, name="config_conta"),
+    path("configuracoes/aliases/", config.aliases, name="config_aliases"),
+    path("configuracoes/aliases/novo/", config.alias_form, name="config_alias_novo"),
+    path("configuracoes/aliases/<int:pk>/", config.alias_form, name="config_alias"),
+    path(
+        "configuracoes/assinatura-previa/", config.assinatura_previa,
+        name="config_assinatura_previa",
+    ),
 ]

@@ -1,4 +1,5 @@
 {% extends "mensagens/base.html" %}
+{% load mensagens_ui %}
 
 {% block titulo %}Rascunhos — Emailing{% endblock %}
 
@@ -6,6 +7,7 @@
 <header class="cabeca">
 	<h1>Rascunhos</h1>
 	<span class="total">{{ rascunhos|length }} guardado{{ rascunhos|length|pluralize }}</span>
+	{% if menu_caixa %}<span class="filtro-caixa"><span class="bloco-alias" style="--h:{{ menu_caixa.dominios.0|default:menu_caixa.nome|matiz }}"></span>{{ menu_caixa.nome }}<a href="{{ menu_todas_url }}" aria-label="Ver todas as caixas">&times;</a></span>{% endif %}
 </header>
 
 <div class="conteudo">

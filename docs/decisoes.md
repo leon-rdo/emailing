@@ -142,6 +142,50 @@ tela, sem esperar tecla.
 `disabled` (antes, `hidden`) e só libera com a prévia **em dia**; enquanto o
 operador digita, volta a `disabled`. Sem JS o servidor continua recusando hash velho.
 
+### Caixa é a conta SMTP, e o filtro é `?caixa=<id>` {#caixas}
+
+O menu lista as caixas (`ContaEmail` ativas) quando há mais de uma, e escolher uma filtra
+Enviados, Agendados e Rascunhos. **Sem estado de sessão**: o filtro é um parâmetro de URL que
+o menu carrega adiante, então uma aba nunca muda a outra. `RegistroEnvio` guarda o *slug* do
+alias, não a conta; por isso a caixa ali é o conjunto de slugs dos aliases dela. A cor do
+bloco na lista vem do **domínio** de quem enviou (não do alias), que é o que separa as caixas
+a olho: dois aliases do mesmo domínio têm a mesma cor. O seletor "De" agrupa por caixa
+(`<optgroup>`) a partir de duas.
+
+### Configurações são telas próprias, e nada apaga {#configuracoes}
+
+Contas SMTP e aliases têm tela no próprio app (`views_configuracoes.py`); o `/admin/` continua
+existindo. **Não há botão de excluir**: o histórico guarda o slug do alias e os agendamentos
+apontam para ele com `PROTECT`; um alias apagado deixaria mensagens sem saber de onde saíram.
+Para parar de usar, desativa-se. O `slug` do alias não muda depois de criado, pelo mesmo
+motivo. A senha da conta nunca volta para a tela (campo em branco mantém a atual), e as duas
+caixas `usar_tls`/`usar_ssl` do modelo viram uma escolha só, para o estado inválido "as duas"
+nem existir.
+
+### "Testar conexão" autentica, mas não envia {#testar-conta}
+
+`POST /configuracoes/contas/testar/` abre a conexão e faz `login`, nada mais. **Não contradiz**
+"não existe API HTTP de envio": ele não consegue enviar mensagem nenhuma, só dizer se os dados
+da conta funcionam. Senha em branco usa a guardada (ao editar).
+
+### A assinatura é editada como HTML, com prévia pelo caminho do envio {#assinatura-html}
+
+Não há editor visual de propósito: a assinatura é `<table>` com estilo inline, e o Trix
+reescreve o HTML que recebe (é o mesmo motivo de ela não passar pelo sanitizador). O editor é
+código à esquerda e a prévia à direita; a prévia vem de `/configuracoes/assinatura-previa/`,
+que usa `montar_corpo` + `emoldurar_para_previa` (a montagem real do envio) e vai para um
+`<iframe sandbox="">`. Imagens só aparecem na prévia se estiverem nos hosts do CSP
+(`HOSTS_IMAGENS_ASSINATURA`); o e-mail enviado não depende disso, e a tela avisa.
+
+### No celular o menu é uma gaveta, e as ações da fila ficam à vista {#mobile}
+
+Abaixo de 900px a barra lateral vira uma barra fixa (marca, Escrever, botão de menu) e a
+navegação inteira abre numa gaveta; alvos de toque têm 44px. Duas coisas que parecem erro:
+**o modal de escrita não foca nenhum campo ao abrir** em tela de toque (focar abriria o
+teclado por cima da tela antes de ela ser vista), e **as ações da linha** (editar, cancelar,
+descartar) aparecem sempre em tela sem hover, porque no desktop elas só surgem ao passar o
+mouse e no celular não existe "passar o mouse".
+
 ### O botão Enviar também espera um destinatário, mas a prévia não {#destino-no-botao}
 
 A prévia segue tolerante com o "Para" (ver [acima](#previa)) — exigi-lo já a matou duas

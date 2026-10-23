@@ -1,0 +1,71 @@
+{% extends "mensagens/base.html" %}
+{% load static %}
+
+{% block titulo %}{% if alias %}{{ alias.endereco }}{% else %}Novo alias{% endif %} — Emailing{% endblock %}
+
+{% block conteudo %}
+<article class="leitura config-form config-larga">
+	<a class="voltar" href="{% url 'mensagens:config_aliases' %}"><svg class="ico" aria-hidden="true"><use href="#i-voltar"/></svg>Aliases e assinaturas</a>
+	<h1>{% if alias %}{{ alias.endereco }}{% else %}Novo alias{% endif %}</h1>
+
+	<form method="post" novalidate class="form-alias" data-url-previa="{% url 'mensagens:config_assinatura_previa' %}">
+		{% csrf_token %}
+		{% if form.non_field_errors %}<ul class="errorlist">{% for erro in form.non_field_errors %}<li>{{ erro }}</li>{% endfor %}</ul>{% endif %}
+
+		<div class="trio">
+			{% include "mensagens/_campo.html" with campo=form.conta %}
+			{% include "mensagens/_campo.html" with campo=form.endereco %}
+			{% include "mensagens/_campo.html" with campo=form.nome_exibicao %}
+		</div>
+		<div class="trio">
+			{% include "mensagens/_campo.html" with campo=form.slug %}
+			{% include "mensagens/_campo.html" with campo=form.reply_to %}
+			{% include "mensagens/_campo.html" with campo=form.ordem %}
+		</div>
+		<label class="alternar alternar-grande">{{ form.ativo }} Alias ativo <span class="mudo">(inativo, some do seletor “De”)</span></label>
+
+		<h2 class="grupo">Assinatura</h2>
+		<p class="nota">
+			HTML anexado ao fim de toda mensagem deste alias. <strong>Não passa pelo sanitizador</strong>:
+			use estilo inline e tabelas, como manda o e-mail. Imagens precisam estar em um endereço público
+			{% if hosts_imagens %}(a prévia só mostra as de <span class="mono">{{ hosts_imagens|join:", " }}</span>; no e-mail enviado, qualquer endereço público aparece){% endif %}.
+		</p>
+
+		<div class="editor-assinatura">
+			<div class="ed-codigo">
+				<div class="ed-barra" role="toolbar" aria-label="Inserir no HTML">
+					<button type="button" class="link" data-insere="negrito">Negrito</button>
+					<button type="button" class="link" data-insere="link">Link</button>
+					<button type="button" class="link" data-insere="imagem">Imagem</button>
+					<button type="button" class="link" data-insere="linha">Linha</button>
+					<button type="button" class="link" data-insere="contato">Bloco de contato</button>
+					<button type="button" class="link" data-insere="logo">Logo + dados</button>
+				</div>
+				<label class="so-leitor" for="{{ form.assinatura_html.id_for_label }}">Assinatura (HTML)</label>
+				{{ form.assinatura_html }}
+				{% for erro in form.assinatura_html.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+			</div>
+			<div class="ed-previa">
+				<div class="via-barra">
+					<h2>Como fica no e-mail</h2>
+					<span class="situacao" role="status" data-estado="atual"><span class="ponto"></span><span class="texto-situacao">Atualizada</span></span>
+				</div>
+				<div class="via-folha">
+					<div class="previa-quadro">
+						<iframe class="previa-iframe" title="Prévia da assinatura" sandbox="" srcdoc=""></iframe>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="acoes">
+			<button type="submit" class="primario">Salvar alias</button>
+			<a class="botao" href="{% url 'mensagens:config_aliases' %}">Cancelar</a>
+		</div>
+	</form>
+</article>
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'mensagens/config.js' %}"></script>
+{% endblock %}

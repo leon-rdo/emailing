@@ -60,8 +60,10 @@ uv run pytest
   - `eml.py` — importar `.eml` e reconstruir `References`
   - `views.py` — redigir/editar/prévia/envio/agendar/rascunho, importar,
     histórico, fila, detalhe de agendado
-  - `contexto.py` + `templatetags/mensagens_ui.py` — contadores do menu lateral e
-    filtros só de apresentação (cor do alias, trecho, data curta)
+  - `views_configuracoes.py` — contas SMTP, aliases e o editor de assinatura
+    (telas próprias; nada apaga, ver [decisoes.md](docs/decisoes.md#configuracoes))
+  - `contexto.py` + `templatetags/mensagens_ui.py` — caixas e contadores do menu
+    lateral (`?caixa=<id>`) e filtros só de apresentação (cor, trecho, data curta)
   - `static/mensagens/` — `estilo.css` (tokens no topo), `compor.js` (modal de escrita e
     prévia ao vivo), `app.js`, `editor.js` (Trix), `fontes/` (woff2 próprios)
   - `management/commands/enviar.py` — a porta do operador e de agentes (ssh)

@@ -1,4 +1,5 @@
 {% extends "mensagens/base.html" %}
+{% load mensagens_ui %}
 
 {% block titulo %}Enviados — Emailing{% endblock %}
 
@@ -6,6 +7,7 @@
 <header class="cabeca">
 	<h1>Enviados</h1>
 	<span class="total">{{ pagina.paginator.count }} mensage{{ pagina.paginator.count|pluralize:"m,ns" }}{% if q %} para “{{ q }}”{% endif %}</span>
+	{% if menu_caixa %}<span class="filtro-caixa"><span class="bloco-alias" style="--h:{{ menu_caixa.dominios.0|default:menu_caixa.nome|matiz }}"></span>{{ menu_caixa.nome }}<a href="{{ menu_todas_url }}" aria-label="Ver todas as caixas">&times;</a></span>{% endif %}
 	<form class="busca" role="search" method="get" action="{% url 'mensagens:historico' %}">
 		<svg class="ico" aria-hidden="true"><use href="#i-busca"/></svg>
 		<input type="search" name="q" value="{{ q }}" placeholder="Buscar nos enviados" title="Busca no assunto, no destinatário e no alias" aria-label="Buscar nos enviados">
