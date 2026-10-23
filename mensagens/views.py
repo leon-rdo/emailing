@@ -7,6 +7,7 @@ from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.views import LoginView, LogoutView
 from django.core.files.uploadhandler import MemoryFileUploadHandler
 from django.core.paginator import Paginator
+from django.db.models import Q
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -250,6 +251,7 @@ def redigir(request, pk=None):
             return destino
         previa = resultado
 
+    fundo, fundo_itens = _fundo_do_modal(linha)
     return render(
         request, "mensagens/redigir.html",
         {
@@ -258,8 +260,27 @@ def redigir(request, pk=None):
             "anexos": anexos_lista,
             "marcadores": GLOSSARIO,
             "linha": linha,
+            "fundo": fundo,
+            "fundo_itens": fundo_itens,
+            "menu_ativo": fundo,
         },
     )
+
+
+def _fundo_do_modal(linha):
+    """A lista que fica atrás do modal de escrita: de onde a pessoa veio.
+
+    Só cenário (a tela marca `inert`), mas é a lista de verdade — o modal abre
+    sobre o contexto, não sobre um vazio. Poucas linhas bastam: o que passa da
+    borda do modal não aparece.
+    """
+    Status = EnvioAgendado.Status
+    if linha is None:
+        return "enviados", RegistroEnvio.objects.all()[:14]
+    base = EnvioAgendado.objects.select_related("alias")
+    if linha.status == Status.RASCUNHO:
+        return "rascunhos", base.filter(status=Status.RASCUNHO).order_by("-atualizado_em")[:14]
+    return "agendados", base.filter(status=Status.AGENDADO)[:14]
 
 
 def _executar(request, acao, form, resultado, token, conferido, linha):
@@ -576,10 +597,21 @@ def _importar_eml(request):
 
 def historico(request):
     lista = RegistroEnvio.objects.all()
+    q = request.GET.get("q", "").strip()[:100]
+    if q:
+        lista = lista.filter(
+            Q(assunto__icontains=q) | Q(para__icontains=q)
+            | Q(cc__icontains=q) | Q(alias__icontains=q)
+        )
     pagina = Paginator(lista, 25).get_page(request.GET.get("pagina"))
-    return render(request, "mensagens/historico.html", {"pagina": pagina})
+    return render(request, "mensagens/historico.html", {"pagina": pagina, "q": q})
 
 
 def registro(request, pk):
     item = get_object_or_404(RegistroEnvio, pk=pk)
-    return render(request, "mensagens/registro.html", {"registro": item})
+    # A mesma moldura da prévia: sem ela o iframe cairia na fonte serifada do
+    # navegador, que nenhum cliente de e-mail usa.
+    return render(
+        request, "mensagens/registro.html",
+        {"registro": item, "corpo_previa": emoldurar_para_previa(item.corpo_html)},
+    )

@@ -179,6 +179,18 @@ class FormularioRedacao(forms.Form):
     def __init__(self, *args, aliases, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["alias"].choices = [(a.slug, str(a)) for a in aliases]
+        # O rótulo das linhas de endereço fica na tela, então o campo não repete
+        # o nome; o que ajuda é dizer o formato e desligar o que atrapalha.
+        for campo in ("para", "cc", "cco"):
+            self.fields[campo].widget.attrs.update(
+                {"autocomplete": "off", "spellcheck": "false", "inputmode": "email"}
+            )
+        self.fields["para"].widget.attrs["placeholder"] = (
+            "nome@dominio.com, outro@dominio.com"
+        )
+        self.fields["assunto"].widget.attrs.update(
+            {"autocomplete": "off", "placeholder": "Assunto"}
+        )
 
     def clean(self):
         limpos = super().clean()

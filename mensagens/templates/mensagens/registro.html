@@ -3,40 +3,48 @@
 {% block titulo %}{{ registro.assunto|default:"(sem assunto)" }} — Emailing{% endblock %}
 
 {% block conteudo %}
-<div class="cartao largo">
-	<p><a href="{% url 'mensagens:historico' %}">&larr; histórico</a></p>
+<article class="leitura">
+	<a class="voltar" href="{% url 'mensagens:historico' %}"><svg class="ico" aria-hidden="true"><use href="#i-voltar"/></svg>Enviados</a>
 
 	<h1>{{ registro.assunto|default:"(sem assunto)" }}</h1>
-	<p><span class="selo {{ registro.selo_css }}">{{ registro.get_status_display }}</span></p>
+	<div class="linha-estado">
+		<span class="selo {{ registro.selo_css }}">{{ registro.get_status_display }}</span>
+		<span class="mono mudo">{{ registro.criado_em|date:"d/m/Y H:i:s" }}</span>
+	</div>
 
 	{% if registro.erro %}
-	<div class="aviso error">{{ registro.erro }}</div>
+	<div class="faixa-erro">{{ registro.erro }}</div>
 	{% endif %}
-
-	<table>
-		<tr><th>Data</th><td>{{ registro.criado_em|date:"d/m/Y H:i:s" }}</td></tr>
-		<tr><th>Alias</th><td><code>{{ registro.alias }}</code></td></tr>
-		<tr><th>De</th><td>{{ registro.remetente }}</td></tr>
-		<tr><th>Para</th><td>{{ registro.para }}</td></tr>
-		{% if registro.cc %}<tr><th>Cc</th><td>{{ registro.cc }}</td></tr>{% endif %}
-		{% if registro.cco %}<tr><th>Cco</th><td>{{ registro.cco }}</td></tr>{% endif %}
-		<tr><th>Message-ID</th><td><code>{{ registro.message_id }}</code></td></tr>
-		{% if registro.in_reply_to %}<tr><th>In-Reply-To</th><td><code>{{ registro.in_reply_to }}</code></td></tr>{% endif %}
-		{% if registro.referencias %}<tr><th>References</th><td><code>{{ registro.referencias }}</code></td></tr>{% endif %}
-		{% if registro.anexos %}
-		<tr><th>Anexos</th><td>
-			<ul>{% for a in registro.anexos %}<li>{{ a.nome }} ({{ a.tamanho }} bytes)</li>{% endfor %}</ul>
-		</td></tr>
-		{% endif %}
-	</table>
 
 	{% if registro.status == "enviado" %}
-	<p><a class="botao" href="{% url 'mensagens:inicio' %}?responder={{ registro.pk }}">Responder</a></p>
+	<div class="acoes">
+		<a class="botao primario" href="{% url 'mensagens:inicio' %}?responder={{ registro.pk }}"><svg class="ico" aria-hidden="true"><use href="#i-responder"/></svg>Responder</a>
+	</div>
 	{% endif %}
+
+	<dl class="meta">
+		<dt>De</dt><dd>{{ registro.remetente }} <span class="mudo">(alias <code>{{ registro.alias }}</code>)</span></dd>
+		<dt>Para</dt><dd>{{ registro.para }}</dd>
+		{% if registro.cc %}<dt>Cc</dt><dd>{{ registro.cc }}</dd>{% endif %}
+		{% if registro.cco %}<dt>Cco</dt><dd>{{ registro.cco }}</dd>{% endif %}
+		{% if registro.anexos %}
+		<dt>Anexos</dt>
+		<dd><ul>{% for a in registro.anexos %}<li>{{ a.nome }} <span class="mudo mono">{{ a.tamanho|filesizeformat }}</span></li>{% endfor %}</ul></dd>
+		{% endif %}
+	</dl>
+
+	<details class="tecnico">
+		<summary>Cabeçalhos da mensagem</summary>
+		<dl class="meta">
+			<dt>Message-ID</dt><dd><code>{{ registro.message_id }}</code></dd>
+			{% if registro.in_reply_to %}<dt>In-Reply-To</dt><dd><code>{{ registro.in_reply_to }}</code></dd>{% endif %}
+			{% if registro.referencias %}<dt>References</dt><dd><code>{{ registro.referencias }}</code></dd>{% endif %}
+		</dl>
+	</details>
 
 	{% if registro.corpo_html %}
 	<h2>Corpo enviado</h2>
-	<iframe class="previa-iframe" title="Corpo enviado" sandbox="" srcdoc="{{ registro.corpo_html }}"></iframe>
+	<iframe class="corpo-iframe" title="Corpo enviado" sandbox="" srcdoc="{{ corpo_previa }}"></iframe>
 	{% endif %}
-</div>
+</article>
 {% endblock %}

@@ -1,288 +1,243 @@
 {% extends "mensagens/base.html" %}
-{% load static %}
+{% load static mensagens_ui %}
 
-{% block titulo %}{% if linha %}Editar #{{ linha.pk }}{% else %}Redigir{% endif %} — Emailing{% endblock %}
+{% block titulo %}{% if linha %}Editar #{{ linha.pk }}{% else %}Escrever{% endif %} — Emailing{% endblock %}
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'mensagens/trix.css' %}">
 {% endblock %}
 
 {% block conteudo %}
-{% if not linha %}
-<details class="cartao largo">
-	<summary>Responder a um e-mail existente</summary>
-	<form method="post" action="{% url 'mensagens:importar' %}" enctype="multipart/form-data" class="form-importar">
-		{% csrf_token %}
-		<p class="campo">
-			<label for="id_arquivo_eml">Arquivo .eml ou .txt</label>
-			<input type="file" id="id_arquivo_eml" name="arquivo" accept=".eml,.txt,message/rfc822,text/plain">
-			<small>Extrai automaticamente destinatário, assunto e o texto original, e encadeia a resposta.</small>
-		</p>
-		<p class="nota">— ou, se você só tem o Message-ID à mão —</p>
-		<p class="campo">
-			<label for="id_message_id_manual">Message-ID</label>
-			<input type="text" id="id_message_id_manual" name="message_id_manual" placeholder="&lt;algumacoisa@dominio.com&gt;">
-		</p>
-		<button type="submit" class="botao">Usar para responder</button>
-	</form>
-</details>
-{% endif %}
-
-<div class="cartao largo">
-	{% if linha %}
-	<p><a href="{% url 'mensagens:agendado' linha.pk %}">&larr; detalhes de #{{ linha.pk }}</a></p>
-	<h1>
-		{% if linha.status == "rascunho" %}Rascunho #{{ linha.pk }}{% else %}Editar agendamento #{{ linha.pk }}{% endif %}
-		<span class="selo {{ linha.selo_css }}">{{ linha.get_status_display }}</span>
-	</h1>
-	{% if linha.status == "agendado" %}
-	<p class="nota">
-		Enquanto você edita, a mensagem continua na fila e sai na hora marcada. O que vale
-		é o que estiver salvo quando o cron a despachar.
-	</p>
-	{% endif %}
-	{% else %}
-	<h1>Redigir</h1>
-	{% endif %}
-
-	{% if form.in_reply_to.value %}
-	<p class="nota">Respondendo à mensagem <code>{{ form.in_reply_to.value }}</code>.</p>
-	{% endif %}
-
-	<form method="post" enctype="multipart/form-data" class="form-redacao" novalidate>
-		{% csrf_token %}
-		{{ form.rascunho }}
-		{% if form.non_field_errors %}
-		<ul class="errorlist">{% for erro in form.non_field_errors %}<li>{{ erro }}</li>{% endfor %}</ul>
-		{% endif %}
-
-		<div class="grade-campos">
-			<p class="campo">
-				<label for="{{ form.alias.id_for_label }}">De</label>
-				{{ form.alias }}
-				{% for erro in form.alias.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
-			</p>
-
-			<p class="campo">
-				<label for="{{ form.para.id_for_label }}">Para</label>
-				{{ form.para }}
-				<small>Vários endereços separados por vírgula.</small>
-				{% for erro in form.para.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
-			</p>
-
-			<p class="campo">
-				<label for="{{ form.cc.id_for_label }}">Cc</label>
-				{{ form.cc }}
-				{% for erro in form.cc.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
-			</p>
-
-			<p class="campo">
-				<label for="{{ form.cco.id_for_label }}">Cco</label>
-				{{ form.cco }}
-				{% for erro in form.cco.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
-			</p>
-		</div>
-
-		<p class="campo">
-			<label for="{{ form.assunto.id_for_label }}">Assunto</label>
-			{{ form.assunto }}
-			{% for erro in form.assunto.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
-		</p>
-
-		{{ form.in_reply_to }}
-		{{ form.referencias }}
-		{{ form.citacao_html }}
-
-		<div class="campo">
-			<div class="cabecalho-campo">
-				<label for="id_corpo">Mensagem</label>
-				<label class="alternar">
-					<input type="checkbox" id="alternar-html-bruto">
-					HTML bruto
-				</label>
-			</div>
-			{{ form.corpo }}
-			<trix-editor id="editor-trix" input="id_corpo" class="editor-trix" placeholder="Escreva sua mensagem…" aria-label="Mensagem"></trix-editor>
-			<textarea id="editor-html-bruto" class="editor-html-bruto" hidden placeholder="&lt;table&gt;…&lt;/table&gt;"></textarea>
-			<small>O HTML colado aqui passa pela mesma limpeza de segurança do editor normal — scripts e afins são removidos.</small>
-		</div>
-
-		<details class="glossario">
-			<summary>Marcadores disponíveis</summary>
-			<p class="nota">
-				Escreva o marcador no corpo e ele é trocado pelo valor no momento do envio.
-				Qualquer outro nome fica literal — a lista é fechada de propósito.
-			</p>
-			<div class="tabela-rolavel">
-				<table>
-					<thead>
-						<tr><th>Marcador</th><th>O que é</th><th>Exemplo</th></tr>
-					</thead>
-					<tbody>
-						{% for marcador in marcadores %}
-						<tr>
-							<td><code>&#123;&#123; {{ marcador.nome }} &#125;&#125;</code></td>
-							<td>{{ marcador.descricao }}</td>
-							<td class="nota">{{ marcador.exemplo }}</td>
-						</tr>
-						{% endfor %}
-					</tbody>
-				</table>
-			</div>
-		</details>
-
-		{% if anexos %}
-		<div class="campo">
-			<label>Anexos</label>
-			<ul class="lista-anexos">
-				{% for anexo in anexos %}
-				<li>
-					<span>{{ anexo.nome }} <span class="nota">({{ anexo.tamanho_legivel }})</span></span>
-					<button type="submit" name="remover_anexo" value="{{ anexo.id }}" class="link">remover</button>
-				</li>
-				{% endfor %}
-			</ul>
-		</div>
-		{% endif %}
-
-		<p class="campo">
-			<label for="{{ form.novo_anexo.id_for_label }}">Anexar arquivo</label>
-			{{ form.novo_anexo }}
-			{% for erro in form.novo_anexo.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
-		</p>
-
-		<input type="hidden" name="hash_previa" value="{{ previa.hash|default:'' }}">
-
-		<div class="painel-previa" {% if not previa %}hidden{% endif %}>
-			<h2>Prévia <span class="previa-status nota" role="status"></span></h2>
-			<p class="nota">O que seria enviado: corpo sanitizado + assinatura do alias. Atualiza sozinha enquanto você digita.</p>
-			<iframe class="previa-iframe" title="Prévia da mensagem" sandbox="" srcdoc="{{ previa.html_previa|default:'' }}"></iframe>
-			<details>
-				<summary>Ver parte em texto simples</summary>
-				<pre class="previa-texto">{{ previa.texto|default:'' }}</pre>
-			</details>
-		</div>
-
-		<details class="agendamento" {% if form.enviar_em.value %}open{% endif %}>
-			<summary>{% if linha.status == "agendado" %}Quando sai{% else %}Agendar em vez de enviar agora{% endif %}</summary>
-			<p class="nota">
-				Sai na hora marcada, pelo mesmo caminho do envio imediato. Os marcadores
-				(<code>&#123;&#123; hora &#125;&#125;</code> e companhia) são resolvidos no
-				momento da entrega, não agora — é o que se espera de um agendamento.
-			</p>
-			<p class="campo">
-				<label for="{{ form.enviar_em.id_for_label }}">Enviar em</label>
-				{{ form.enviar_em }}
-				<small>A fila fica em <a href="{% url 'mensagens:agendados' %}">Agendados</a>, e dá para cancelar até a hora de sair.</small>
-				{% for erro in form.enviar_em.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
-			</p>
-		</details>
-
-		<div class="acoes">
-			<button type="submit" name="acao" value="previa" class="botao">Pré-visualizar</button>
-			{% if linha.status == "agendado" %}
-			<button type="submit" name="acao" value="salvar" class="primario botao-enviar" {% if not previa %}hidden{% endif %}>Salvar alterações</button>
-			<button type="submit" name="acao" value="salvar_rascunho" class="botao" title="Tira da fila e guarda como rascunho, sem cancelar">Tirar da fila (rascunho)</button>
-			{% else %}
-			<button type="submit" name="acao" value="enviar" class="primario botao-enviar" {% if not previa %}hidden{% endif %}>Enviar</button>
-			<button type="submit" name="acao" value="agendar" class="botao botao-enviar" {% if not previa %}hidden{% endif %}>Agendar</button>
-			<button type="submit" name="acao" value="salvar_rascunho" class="botao">Salvar rascunho</button>
-			{% endif %}
-		</div>
-	</form>
+{# O que fica atrás do modal: a lista de onde a pessoa veio. Só cenário, sem link nem botão. #}
+<div class="fundo-escrever" aria-hidden="true" inert>
+	<header class="cabeca">
+		<h1>{% if fundo == "rascunhos" %}Rascunhos{% elif fundo == "agendados" %}Agendados{% else %}Enviados{% endif %}</h1>
+	</header>
+	<ul class="lista">
+		{% for item in fundo_itens %}
+			{% if fundo == "enviados" %}{% include "mensagens/_linha_envio.html" with fundo=True %}
+			{% else %}{% include "mensagens/_linha_fila.html" with fundo=True pagina=fundo %}{% endif %}
+		{% endfor %}
+	</ul>
 </div>
+
+<dialog class="escrever-modal" open aria-labelledby="titulo-escrever"
+	data-url-previa="{% url 'mensagens:previa_ajax' %}"
+	data-url-fechar="{% if fundo == 'rascunhos' %}{% url 'mensagens:rascunhos' %}{% elif fundo == 'agendados' %}{% url 'mensagens:agendados' %}{% else %}{% url 'mensagens:historico' %}{% endif %}"
+	data-sujo="{% if request.method == 'POST' %}1{% endif %}" data-aba="escrever">
+
+	<div class="modal-topo">
+		<h1 id="titulo-escrever">{% if linha %}{% if linha.status == "rascunho" %}Rascunho{% else %}Editar agendamento{% endif %} #{{ linha.pk }}{% else %}Nova mensagem{% endif %}</h1>
+		{% if linha %}<span class="selo {{ linha.selo_css }}">{{ linha.get_status_display }}</span>{% endif %}
+		<span class="estado-salvo">{% if linha %}guardado em <span class="mono">{{ linha.atualizado_em|quando }}</span>{% else %}ainda não salvo{% endif %}</span>
+		<a class="botao icone fechar-modal" href="{% if fundo == 'rascunhos' %}{% url 'mensagens:rascunhos' %}{% elif fundo == 'agendados' %}{% url 'mensagens:agendados' %}{% else %}{% url 'mensagens:historico' %}{% endif %}" aria-label="Fechar" title="Fechar (Esc)">
+			<svg class="ico" aria-hidden="true"><use href="#i-fechar"/></svg>
+		</a>
+	</div>
+
+	<div class="abas-mobile" role="group" aria-label="Alternar entre escrita e prévia">
+		<button type="button" data-aba-modal="escrever" aria-pressed="true">Escrever</button>
+		<button type="button" data-aba-modal="previa" aria-pressed="false">Prévia</button>
+	</div>
+
+	<div class="coluna-escrita">
+		{% if not linha %}
+		<details class="importar">
+			<summary>Responder a um e-mail que recebi</summary>
+			<form method="post" action="{% url 'mensagens:importar' %}" enctype="multipart/form-data" class="corpo">
+				{% csrf_token %}
+				<p class="campo">
+					<label for="id_arquivo_eml">Arquivo .eml ou .txt</label>
+					<input type="file" id="id_arquivo_eml" name="arquivo" accept=".eml,.txt,message/rfc822,text/plain">
+					<small>Preenche destinatário, assunto e o texto original, e encadeia a resposta.</small>
+				</p>
+				<p class="campo">
+					<label for="id_message_id_manual">Ou só o Message-ID</label>
+					<input type="text" id="id_message_id_manual" name="message_id_manual" placeholder="&lt;algumacoisa@dominio.com&gt;">
+				</p>
+				<button type="submit">Usar para responder</button>
+			</form>
+		</details>
+		{% endif %}
+
+		<form method="post" enctype="multipart/form-data" class="form-redacao" novalidate>
+			{% csrf_token %}
+			{{ form.rascunho }}
+			<button type="submit" name="acao" value="previa" class="so-leitor" tabindex="-1" aria-hidden="true">Pré-visualizar</button>
+
+			<div class="escrita">
+				{% if form.non_field_errors %}
+				<ul class="errorlist">{% for erro in form.non_field_errors %}<li>{{ erro }}</li>{% endfor %}</ul>
+				{% endif %}
+
+				{% if form.in_reply_to.value %}
+				<p class="nota nota-resposta">Em resposta à mensagem <code>{{ form.in_reply_to.value }}</code>.</p>
+				{% endif %}
+
+				<div class="linha-campo">
+					<label for="{{ form.alias.id_for_label }}">De</label>
+					{{ form.alias }}
+				</div>
+				{% for erro in form.alias.errors %}<span class="erro erro-campo">{{ erro }}</span>{% endfor %}
+
+				{% if linha.status == "agendado" %}
+				<div class="linha-campo">
+					<label for="{{ form.enviar_em.id_for_label }}">Sai em</label>
+					{{ form.enviar_em }}
+				</div>
+				{% for erro in form.enviar_em.errors %}<span class="erro erro-campo">{{ erro }}</span>{% endfor %}
+				{% endif %}
+
+				<div class="linha-campo">
+					<label for="{{ form.para.id_for_label }}">Para</label>
+					{{ form.para }}
+					<span class="extra">
+						<button type="button" data-mostrar="cc"{% if form.cc.value or form.cc.errors %} hidden{% endif %}>Cc</button>
+						<button type="button" data-mostrar="cco"{% if form.cco.value or form.cco.errors %} hidden{% endif %}>Cco</button>
+					</span>
+				</div>
+				{% for erro in form.para.errors %}<span class="erro erro-campo">{{ erro }}</span>{% endfor %}
+
+				<div class="linha-campo" data-linha="cc"{% if not form.cc.value and not form.cc.errors %} hidden{% endif %}>
+					<label for="{{ form.cc.id_for_label }}">Cc</label>
+					{{ form.cc }}
+				</div>
+				{% for erro in form.cc.errors %}<span class="erro erro-campo">{{ erro }}</span>{% endfor %}
+
+				<div class="linha-campo" data-linha="cco"{% if not form.cco.value and not form.cco.errors %} hidden{% endif %}>
+					<label for="{{ form.cco.id_for_label }}">Cco</label>
+					{{ form.cco }}
+				</div>
+				{% for erro in form.cco.errors %}<span class="erro erro-campo">{{ erro }}</span>{% endfor %}
+
+				<div class="assunto-campo">
+					<label class="so-leitor" for="{{ form.assunto.id_for_label }}">Assunto</label>
+					{{ form.assunto }}
+				</div>
+				{% for erro in form.assunto.errors %}<span class="erro erro-campo">{{ erro }}</span>{% endfor %}
+
+				{{ form.in_reply_to }}
+				{{ form.referencias }}
+				{{ form.citacao_html }}
+
+				<div class="corpo-editor">
+					<div class="cabecalho-campo">
+						<label class="so-leitor" for="id_corpo">Mensagem</label>
+						<label class="alternar"><input type="checkbox" id="alternar-html-bruto"> Editar HTML bruto</label>
+					</div>
+					{{ form.corpo }}
+					<trix-editor id="editor-trix" input="id_corpo" class="editor-trix" placeholder="Escreva a mensagem…" aria-label="Mensagem"></trix-editor>
+					<textarea id="editor-html-bruto" class="editor-html-bruto" hidden aria-label="HTML da mensagem" placeholder="&lt;table&gt;…&lt;/table&gt;"></textarea>
+					<small hidden data-ajuda-bruto>O HTML passa pela mesma limpeza de segurança do editor normal: scripts e afins são removidos.</small>
+				</div>
+
+				{% if anexos %}
+				<ul class="lista-anexos">
+					{% for anexo in anexos %}
+					<li>
+						<svg class="ico" aria-hidden="true"><use href="#i-clipe"/></svg>
+						<span>{{ anexo.nome }}</span> <span class="tam">{{ anexo.tamanho_legivel }}</span>
+						<button type="submit" name="remover_anexo" value="{{ anexo.id }}" class="link perigo" aria-label="Remover anexo {{ anexo.nome }}">Remover</button>
+					</li>
+					{% endfor %}
+				</ul>
+				{% endif %}
+				{% for erro in form.novo_anexo.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+				<label class="anexar">
+					<svg class="ico" aria-hidden="true"><use href="#i-clipe"/></svg>
+					Anexar arquivo
+					{{ form.novo_anexo }}
+				</label>
+
+				<details class="apoio">
+					<summary>Marcadores disponíveis</summary>
+					<div class="corpo">
+						<p class="nota">
+							Escreva o marcador no corpo e ele é trocado pelo valor no momento do envio.
+							Qualquer outro nome fica literal: a lista é fechada de propósito.
+						</p>
+						<div class="tabela-rolavel">
+							<table>
+								<thead><tr><th>Marcador</th><th>O que é</th><th>Exemplo</th></tr></thead>
+								<tbody>
+									{% for marcador in marcadores %}
+									<tr>
+										<td><code>&#123;&#123; {{ marcador.nome }} &#125;&#125;</code></td>
+										<td>{{ marcador.descricao }}</td>
+										<td class="mudo">{{ marcador.exemplo }}</td>
+									</tr>
+									{% endfor %}
+								</tbody>
+							</table>
+						</div>
+					</div>
+				</details>
+
+				{% if linha.status != "agendado" %}
+				<details class="apoio agendamento-painel" {% if form.enviar_em.value %}open{% endif %}>
+					<summary>Agendar para depois</summary>
+					<div class="corpo">
+						<p class="nota">
+							Sai na hora marcada, pelo mesmo caminho do envio imediato. Os marcadores
+							(<code>&#123;&#123; hora &#125;&#125;</code> e companhia) são resolvidos na entrega, não agora.
+						</p>
+						<label class="rotulo" for="{{ form.enviar_em.id_for_label }}">Enviar em</label>
+						{{ form.enviar_em }}
+						{% for erro in form.enviar_em.errors %}<span class="erro">{{ erro }}</span>{% endfor %}
+						<div class="acao-agendar">
+							<button type="submit" name="acao" value="agendar" class="botao-enviar" {% if not previa %}disabled{% endif %}>Agendar envio</button>
+						</div>
+					</div>
+				</details>
+				{% else %}
+				<p class="nota nota-fila">Enquanto você edita, a mensagem continua na fila e sai na hora marcada: vale o que estiver salvo quando o cron despachar. Os marcadores (<code>&#123;&#123; hora &#125;&#125;</code> e companhia) são resolvidos na entrega.</p>
+				{% endif %}
+			</div>
+
+			<input type="hidden" name="hash_previa" value="{{ previa.hash|default:'' }}">
+
+			<div class="rodape-acoes">
+				{% if linha.status == "agendado" %}
+				<button type="submit" name="acao" value="salvar" class="primario botao-enviar" {% if not previa %}disabled{% endif %}>Salvar alterações</button>
+				<button type="submit" name="acao" value="salvar_rascunho" title="Tira da fila e guarda como rascunho, sem cancelar">Tirar da fila (rascunho)</button>
+				{% else %}
+				<button type="submit" name="acao" value="enviar" class="primario botao-enviar" {% if not previa %}disabled{% endif %}>
+					<svg class="ico" aria-hidden="true"><use href="#i-enviados"/></svg>Enviar
+				</button>
+				<button type="submit" name="acao" value="salvar_rascunho">Salvar rascunho</button>
+				{% endif %}
+				<span class="situacao" role="status" data-estado="{% if previa %}atual{% else %}aguardando{% endif %}">
+					<span class="ponto"></span><span class="texto-situacao">{% if previa %}Prévia em dia{% else %}Preparando a prévia…{% endif %}</span>
+				</span>
+			</div>
+		</form>
+	</div>
+
+	<div class="via painel-previa" data-estado="{% if previa %}atual{% else %}aguardando{% endif %}">
+		<div class="via-barra">
+			<h2>Como chega ao destinatário</h2>
+			<div class="segmentos" role="group" aria-label="Formato da prévia">
+				<button type="button" data-formato="html" aria-pressed="true">E-mail</button>
+				<button type="button" data-formato="texto" aria-pressed="false">Texto simples</button>
+			</div>
+			<div class="segmentos" role="group" aria-label="Largura da prévia">
+				<button type="button" data-largura="100%" aria-pressed="true">Tela</button>
+				<button type="button" data-largura="375px" aria-pressed="false">Celular</button>
+			</div>
+		</div>
+		<div class="via-erros" hidden></div>
+		<div class="via-folha">
+			<div class="previa-quadro">
+				<iframe class="previa-iframe" title="Prévia da mensagem" sandbox="" srcdoc="{{ previa.html_previa|default:'' }}"></iframe>
+				<pre class="previa-texto" hidden>{{ previa.texto|default:'' }}</pre>
+			</div>
+		</div>
+	</div>
+</dialog>
 {% endblock %}
 
 {% block scripts %}
-<script nonce="{{ request.csp_nonce }}" src="{% static 'mensagens/trix.umd.js' %}"></script>
-<script nonce="{{ request.csp_nonce }}" src="{% static 'mensagens/editor.js' %}"></script>
-<script nonce="{{ request.csp_nonce }}">
-(function () {
-	"use strict";
-	var form = document.querySelector("form.form-redacao");
-	if (!form) return;
-
-	// Impede um clique duplo em "Enviar"/"Agendar"/"Salvar" disparar duas gravações
-	// (dois envios, ou dois rascunhos iguais) antes do redirecionamento — não é o que protege contra F5 (isso é o próprio
-	// POST-redirect-GET), só a corrida de dois cliques quase simultâneos.
-	form.addEventListener("submit", function (evento) {
-		var botao = evento.submitter;
-		var gravam = ["enviar", "agendar", "salvar", "salvar_rascunho"];
-		if (botao && botao.name === "acao" && gravam.indexOf(botao.value) !== -1) {
-			setTimeout(function () { botao.disabled = true; }, 0);
-		}
-	});
-
-	// Prévia ao vivo: reusa o mesmo endpoint/sanitizador do servidor — nunca
-	// reimplementa a limpeza de HTML em JS, só evita o reload de página
-	// inteira a cada prévia. Ver mensagens/views.py:previa_ajax.
-	var iframe = form.querySelector(".previa-iframe");
-	var painel = form.querySelector(".painel-previa");
-	var status = form.querySelector(".previa-status");
-	var textoPre = form.querySelector(".previa-texto");
-	var hashInput = form.querySelector('input[name="hash_previa"]');
-	var botoesEnvio = form.querySelectorAll(".botao-enviar");
-	var sequencia = 0;
-	var timer = null;
-
-	function atualizarAgora() {
-		var minhaVez = ++sequencia;
-		status.textContent = "atualizando…";
-		var dados = new FormData(form);
-		fetch("{% url 'mensagens:previa_ajax' %}", { method: "POST", body: dados })
-			.then(function (resposta) { return resposta.json(); })
-			.then(function (resultado) {
-				if (minhaVez !== sequencia) return; // resposta atrasada — descartada
-				if (!resultado.ok) {
-					status.textContent = "corrija os campos acima";
-					return;
-				}
-				iframe.srcdoc = resultado.html;
-				textoPre.textContent = resultado.texto;
-				hashInput.value = resultado.hash;
-				painel.hidden = false;
-				botoesEnvio.forEach(function (botao) { botao.hidden = false; });
-				status.textContent = "";
-			})
-			.catch(function () { status.textContent = ""; });
-	}
-
-	function agendar() {
-		clearTimeout(timer);
-		status.textContent = "aguardando…";
-		timer = setTimeout(atualizarAgora, 600);
-	}
-
-	form.addEventListener("input", agendar);
-	form.addEventListener("trix-change", agendar);
-	form.addEventListener("change", agendar);
-
-	// --- alternar entre o editor Trix e um textarea de HTML bruto ---
-	//
-	// Um campo só (o input oculto "corpo"): o toggle só decide qual UI está
-	// editando esse valor no momento. O HTML colado passa pela mesma
-	// limpar_html() do servidor — nunca pula o sanitizador, só o editor Trix.
-	var caixaAlternar = document.getElementById("alternar-html-bruto");
-	var trix = document.getElementById("editor-trix");
-	var bruto = document.getElementById("editor-html-bruto");
-	var oculto = document.getElementById("id_corpo");
-
-	caixaAlternar.addEventListener("change", function () {
-		if (caixaAlternar.checked) {
-			bruto.value = oculto.value;
-			trix.hidden = true;
-			bruto.hidden = false;
-		} else {
-			trix.editor.loadHTML(bruto.value);
-			trix.hidden = false;
-			bruto.hidden = true;
-		}
-		agendar();
-	});
-
-	bruto.addEventListener("input", function () {
-		oculto.value = bruto.value;
-	});
-})();
-</script>
+<script src="{% static 'mensagens/trix.umd.js' %}"></script>
+<script src="{% static 'mensagens/editor.js' %}"></script>
+<script src="{% static 'mensagens/compor.js' %}"></script>
 {% endblock %}

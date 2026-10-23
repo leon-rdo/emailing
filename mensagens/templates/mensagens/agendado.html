@@ -3,59 +3,36 @@
 {% block titulo %}{{ item.assunto|default:"(sem assunto)" }} — Emailing{% endblock %}
 
 {% block conteudo %}
-<div class="cartao largo">
-	<p>
-		{% if item.status == "rascunho" %}<a href="{% url 'mensagens:rascunhos' %}">&larr; rascunhos</a>
-		{% else %}<a href="{% url 'mensagens:agendados' %}">&larr; agendados</a>{% endif %}
-	</p>
-
-	<h1>{{ item.assunto|default:"(sem assunto)" }}</h1>
-	<p><span class="selo {{ item.selo_css }}">{{ item.get_status_display }}</span> <span class="nota">#{{ item.pk }}</span></p>
-
-	{% if item.erro %}
-	<div class="aviso error">{{ item.erro }}</div>
+<article class="leitura">
+	{% if item.status == "rascunho" %}
+	<a class="voltar" href="{% url 'mensagens:rascunhos' %}"><svg class="ico" aria-hidden="true"><use href="#i-voltar"/></svg>Rascunhos</a>
+	{% else %}
+	<a class="voltar" href="{% url 'mensagens:agendados' %}"><svg class="ico" aria-hidden="true"><use href="#i-voltar"/></svg>Agendados</a>
 	{% endif %}
 
-	<table>
-		{% if item.enviar_em %}
-		<tr><th>{% if item.status == "rascunho" %}Data provisória{% elif item.status == "enviado" %}Saiu em{% else %}Para sair em{% endif %}</th><td>{{ item.enviar_em|date:"d/m/Y H:i" }}</td></tr>
-		{% endif %}
-		<tr><th>Alias</th><td><code>{{ item.alias.slug }}</code></td></tr>
-		<tr><th>De</th><td>{{ item.alias.remetente }}</td></tr>
-		<tr><th>Para</th><td>{{ item.destinatarios|default:"—" }}</td></tr>
-		{% if item.cc %}<tr><th>Cc</th><td>{{ item.cc|join:", " }}</td></tr>{% endif %}
-		{% if item.cco %}<tr><th>Cco</th><td>{{ item.cco|join:", " }}</td></tr>{% endif %}
-		{% if item.in_reply_to %}<tr><th>In-Reply-To</th><td><code>{{ item.in_reply_to }}</code></td></tr>{% endif %}
-		{% if item.referencias %}<tr><th>References</th><td><code>{{ item.referencias }}</code></td></tr>{% endif %}
-		{% if anexos %}
-		<tr><th>Anexos</th><td>
-			<ul>{% for a in anexos %}<li>{{ a.nome }} <span class="nota">({{ a.tamanho|filesizeformat }})</span></li>{% endfor %}</ul>
-			{% if anexos_sem_arquivo %}
-			<p class="nota">Os arquivos já não existem{% if item.status == "cancelado" %} — são apagados ao cancelar{% endif %}. Esta é só a lista do que estava anexado.</p>
-			{% endif %}
-		</td></tr>
-		{% endif %}
-		<tr><th>Criado em</th><td>{{ item.criado_em|date:"d/m/Y H:i" }}</td></tr>
-		<tr><th>Última alteração</th><td>{{ item.atualizado_em|date:"d/m/Y H:i" }}</td></tr>
-		{% if item.expira_em %}<tr><th>Expira em</th><td>{{ item.expira_em|date:"d/m/Y" }} <span class="nota">(se não for alterado até lá)</span></td></tr>{% endif %}
-		{% if item.tentativas %}
-		<tr><th>Tentativas</th><td>{{ item.tentativas }}{% if item.ultima_tentativa_em %}, a última em {{ item.ultima_tentativa_em|date:"d/m/Y H:i" }}{% endif %}</td></tr>
-		{% endif %}
-	</table>
+	<h1>{{ item.assunto|default:"(sem assunto)" }}</h1>
+	<div class="linha-estado">
+		<span class="selo {{ item.selo_css }}">{{ item.get_status_display }}</span>
+		<span class="mono mudo">#{{ item.pk }}</span>
+	</div>
+
+	{% if item.erro %}
+	<div class="faixa-erro">{{ item.erro }}</div>
+	{% endif %}
 
 	<div class="acoes">
 		{% if item.editavel %}
-		<a class="botao" href="{% url 'mensagens:editar' item.pk %}">Editar</a>
+		<a class="botao primario" href="{% url 'mensagens:editar' item.pk %}"><svg class="ico" aria-hidden="true"><use href="#i-escrever"/></svg>Editar</a>
 		{% endif %}
 		{% if item.status == "agendado" %}
-		<form method="post" action="{% url 'mensagens:cancelar_agendado' item.pk %}" class="embutido">
+		<form method="post" action="{% url 'mensagens:cancelar_agendado' item.pk %}" class="embutido" data-confirmar="Cancelar este agendamento? A mensagem não sairá.">
 			{% csrf_token %}
-			<button type="submit" class="botao">Cancelar agendamento</button>
+			<button type="submit">Cancelar agendamento</button>
 		</form>
 		{% elif item.status == "rascunho" %}
 		<form method="post" action="{% url 'mensagens:descartar_rascunho' item.pk %}" class="embutido" data-confirmar="Descartar este rascunho? Não dá para desfazer.">
 			{% csrf_token %}
-			<button type="submit" class="botao">Descartar rascunho</button>
+			<button type="submit">Descartar rascunho</button>
 		</form>
 		{% endif %}
 		{% if item.registro_id %}
@@ -63,16 +40,47 @@
 		{% endif %}
 	</div>
 
+	<dl class="meta">
+		{% if item.enviar_em %}
+		<dt>{% if item.status == "rascunho" %}Data provisória{% elif item.status == "enviado" %}Saiu em{% else %}Para sair em{% endif %}</dt>
+		<dd class="mono">{{ item.enviar_em|date:"d/m/Y H:i" }}</dd>
+		{% endif %}
+		<dt>De</dt><dd>{{ item.alias.remetente }} <span class="mudo">(alias <code>{{ item.alias.slug }}</code>)</span></dd>
+		<dt>Para</dt><dd>{{ item.destinatarios|default:"—" }}</dd>
+		{% if item.cc %}<dt>Cc</dt><dd>{{ item.cc|join:", " }}</dd>{% endif %}
+		{% if item.cco %}<dt>Cco</dt><dd>{{ item.cco|join:", " }}</dd>{% endif %}
+		{% if anexos %}
+		<dt>Anexos</dt>
+		<dd>
+			<ul>{% for a in anexos %}<li>{{ a.nome }} <span class="mudo mono">{{ a.tamanho|filesizeformat }}</span></li>{% endfor %}</ul>
+			{% if anexos_sem_arquivo %}
+			<p class="nota">Os arquivos já não existem{% if item.status == "cancelado" %}: são apagados ao cancelar{% endif %}. Esta é só a lista do que estava anexado.</p>
+			{% endif %}
+		</dd>
+		{% endif %}
+		<dt>Criado em</dt><dd class="mono">{{ item.criado_em|date:"d/m/Y H:i" }}</dd>
+		<dt>Última alteração</dt><dd class="mono">{{ item.atualizado_em|date:"d/m/Y H:i" }}</dd>
+		{% if item.expira_em %}<dt>Expira em</dt><dd><span class="mono">{{ item.expira_em|date:"d/m/Y" }}</span> <span class="mudo">se não for alterado até lá</span></dd>{% endif %}
+		{% if item.tentativas %}
+		<dt>Tentativas</dt><dd>{{ item.tentativas }}{% if item.ultima_tentativa_em %}, a última em <span class="mono">{{ item.ultima_tentativa_em|date:"d/m/Y H:i" }}</span>{% endif %}</dd>
+		{% endif %}
+	</dl>
+
+	{% if item.in_reply_to or item.referencias %}
+	<details class="tecnico">
+		<summary>Cabeçalhos de encadeamento</summary>
+		<dl class="meta">
+			{% if item.in_reply_to %}<dt>In-Reply-To</dt><dd><code>{{ item.in_reply_to }}</code></dd>{% endif %}
+			{% if item.referencias %}<dt>References</dt><dd><code>{{ item.referencias }}</code></dd>{% endif %}
+		</dl>
+	</details>
+	{% endif %}
+
 	<h2>Mensagem guardada</h2>
 	<p class="nota">
-		Como está guardada: já sanitizada e com a assinatura do alias, mas com os marcadores
-		(<code>&#123;&#123; hora &#125;&#125;</code> e companhia) como foram escritos — eles só
-		viram valor na hora da entrega.
+		Já limpa e com a assinatura do alias, mas com os marcadores
+		(<code>&#123;&#123; hora &#125;&#125;</code> e companhia) como foram escritos: eles só viram valor na hora da entrega.
 	</p>
-	<iframe class="previa-iframe" title="Mensagem guardada" sandbox="" srcdoc="{{ html_previa }}"></iframe>
-</div>
-{% endblock %}
-
-{% block scripts %}
-{% include "mensagens/_confirmar.html" %}
+	<iframe class="corpo-iframe" title="Mensagem guardada" sandbox="" srcdoc="{{ html_previa }}"></iframe>
+</article>
 {% endblock %}

@@ -5,40 +5,77 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="robots" content="noindex, nofollow">
 	<title>{% block titulo %}Emailing{% endblock %}</title>
-	<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✉️</text></svg>">
+	<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%232a35ff'/%3E%3Cpath d='M7 11l9 7 9-7M7 10h18v12H7z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
 	<link rel="stylesheet" href="{% static 'mensagens/estilo.css' %}">
 	{% block extra_head %}{% endblock %}
 </head>
 <body>
+	{% include "mensagens/_icones.html" %}
+
 	{% if user.is_authenticated %}
-	<header class="topo">
-		<div class="contido barra">
-			<a class="marca" href="{% url 'mensagens:inicio' %}">✉️ Emailing</a>
-			<nav>
-				<a href="{% url 'mensagens:inicio' %}">Redigir</a>
-				<a href="{% url 'mensagens:rascunhos' %}">Rascunhos</a>
-				<a href="{% url 'mensagens:agendados' %}">Agendados</a>
-				<a href="{% url 'mensagens:historico' %}">Histórico</a>
-				<a href="/admin/">Admin</a>
-				<form method="post" action="{% url 'mensagens:sair' %}" class="embutido">
-					{% csrf_token %}
-					<button type="submit" class="link">Sair</button>
-				</form>
+	<div class="app">
+		<aside class="menu">
+			<a class="marca" href="{% url 'mensagens:historico' %}">emailing</a>
+			<a class="escrever" href="{% url 'mensagens:inicio' %}">
+				<svg class="ico" aria-hidden="true"><use href="#i-escrever"/></svg>
+				Escrever
+			</a>
+
+			<nav aria-label="Caixas">
+				<ul>
+					<li><a class="menu-item" href="{% url 'mensagens:historico' %}"{% if menu_ativo == "enviados" %} aria-current="page"{% endif %}>
+						<svg class="ico" aria-hidden="true"><use href="#i-enviados"/></svg><span class="rotulo-item">Enviados</span></a></li>
+					<li><a class="menu-item" href="{% url 'mensagens:agendados' %}"{% if menu_ativo == "agendados" %} aria-current="page"{% endif %}>
+						<svg class="ico" aria-hidden="true"><use href="#i-agendados"/></svg><span class="rotulo-item">Agendados</span>
+						{% if menu_agendados %}<span class="conta">{{ menu_agendados }}</span>{% endif %}</a></li>
+					<li><a class="menu-item" href="{% url 'mensagens:rascunhos' %}"{% if menu_ativo == "rascunhos" %} aria-current="page"{% endif %}>
+						<svg class="ico" aria-hidden="true"><use href="#i-rascunhos"/></svg><span class="rotulo-item">Rascunhos</span>
+						{% if menu_rascunhos %}<span class="conta">{{ menu_rascunhos }}</span>{% endif %}</a></li>
+				</ul>
 			</nav>
-		</div>
-	</header>
+
+			<p class="menu-grupo">Configurações</p>
+			<nav aria-label="Configurações">
+				<ul>
+					<li><a class="menu-item" href="{% url 'admin:mensagens_contaemail_changelist' %}">
+						<svg class="ico" aria-hidden="true"><use href="#i-contas"/></svg><span class="rotulo-item">Contas SMTP</span></a></li>
+					<li><a class="menu-item" href="{% url 'admin:mensagens_alias_changelist' %}">
+						<svg class="ico" aria-hidden="true"><use href="#i-aliases"/></svg><span class="rotulo-item">Aliases e assinaturas</span></a></li>
+					<li><a class="menu-item" href="{% url 'admin:index' %}">
+						<svg class="ico" aria-hidden="true"><use href="#i-admin"/></svg><span class="rotulo-item">Administração</span></a></li>
+				</ul>
+			</nav>
+
+			<form method="post" action="{% url 'mensagens:sair' %}" class="menu-rodape">
+				{% csrf_token %}
+				<button type="submit" class="menu-item">
+					<svg class="ico" aria-hidden="true"><use href="#i-sair"/></svg><span class="rotulo-item">Sair <span class="mudo">({{ user.get_username }})</span></span>
+				</button>
+			</form>
+		</aside>
+
+		<main class="principal">
+			{% block conteudo %}{% endblock %}
+		</main>
+	</div>
+	{% else %}
+	<main>
+		{% block conteudo_publico %}{% endblock %}
+	</main>
 	{% endif %}
 
-	<main class="contido">
-		{% if messages %}
-		<ul class="avisos">
-			{% for m in messages %}<li class="aviso {{ m.tags }}">{{ m }}</li>{% endfor %}
-		</ul>
-		{% endif %}
+	{% if messages %}
+	<ul class="avisos" role="status" aria-live="polite">
+		{% for m in messages %}
+		<li class="aviso {{ m.tags }}">
+			<svg class="ico" aria-hidden="true"><use href="#{% if m.level_tag == 'error' or m.level_tag == 'warning' %}i-aviso{% else %}i-check{% endif %}"/></svg>
+			<span>{{ m }}</span>
+		</li>
+		{% endfor %}
+	</ul>
+	{% endif %}
 
-		{% block conteudo %}{% endblock %}
-	</main>
-
+	<script src="{% static 'mensagens/app.js' %}"></script>
 	{% block scripts %}{% endblock %}
 </body>
 </html>

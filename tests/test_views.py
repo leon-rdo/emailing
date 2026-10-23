@@ -8,7 +8,7 @@ from django.test import override_settings
 from django.urls import reverse
 
 _TAG_BOTAO_ENVIAR = re.compile(r'<button[^>]*name="acao" value="enviar"[^>]*>')
-_TAG_PAINEL_PREVIA = re.compile(r'<div class="painel-previa"[^>]*>')
+_TAG_PAINEL_PREVIA = re.compile(r'<div class="via painel-previa"[^>]*>')
 
 
 def _tag_botao_enviar(html: str) -> str:
@@ -38,16 +38,16 @@ def test_tela_de_redacao_carrega(client, logado):
     assert b"trix-editor" in resposta.content
 
 
-def test_sem_previa_botao_enviar_nasce_escondido(client, logado):
-    """O botão Enviar e o painel de prévia sempre existem no DOM (para a
-    prévia ao vivo poder populá-los sem reload), mas nascem `hidden` até
-    haver uma prévia — sem JS, o comportamento de antes se preserva."""
+def test_sem_previa_botao_enviar_nasce_desabilitado(client, logado):
+    """O painel de prévia está sempre à vista (a prévia ao vivo o preenche logo
+    ao abrir), mas o botão Enviar nasce `disabled` até haver uma prévia em dia
+    — sem JS, a trava de `hash_previa` do servidor continua valendo igual."""
     resposta = client.get(reverse("mensagens:inicio"))
     conteudo = resposta.content.decode()
     assert 'name="hash_previa"' in conteudo  # sempre presente, começa vazio
     assert 'value=""' in conteudo
-    assert "hidden" in _tag_botao_enviar(conteudo)
-    assert "hidden" in _tag_painel_previa(conteudo)
+    assert "disabled" in _tag_botao_enviar(conteudo)
+    assert "hidden" not in _tag_painel_previa(conteudo)
 
 
 def test_previa_mostra_html_sanitizado_no_iframe(client, logado):
@@ -74,9 +74,9 @@ def test_previa_mostra_html_sanitizado_no_iframe(client, logado):
     inicio_previa = conteudo.index("previa-iframe")
     assert "alert(1)" not in conteudo[inicio_previa:]
     # Depois de uma prévia, o hash não fica vazio e o botão Enviar não tem
-    # mais o atributo hidden que carregava na carga inicial.
+    # mais o atributo disabled que carregava na carga inicial.
     assert 'name="hash_previa" value=""' not in conteudo
-    assert "hidden" not in _tag_botao_enviar(conteudo)
+    assert "disabled" not in _tag_botao_enviar(conteudo)
 
 
 def test_previa_com_formulario_invalido_nao_quebra(client, logado):

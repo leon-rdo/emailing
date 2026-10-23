@@ -1,0 +1,9 @@
+Bricolage Grotesque — Copyright 2022 The Bricolage Grotesque Project Authors
+(https://github.com/ateliertriay/bricolage). SIL Open Font License 1.1.
+
+Spline Sans Mono — Copyright 2020 The Spline Sans Mono Project Authors
+(https://github.com/SorkinType/SplineSansMono). SIL Open Font License 1.1.
+
+Texto da licença: https://openfontlicense.org
+Subconjunto latino, obtido do Google Fonts e servido do próprio domínio
+(o CSP não aceita fonte de terceiros).

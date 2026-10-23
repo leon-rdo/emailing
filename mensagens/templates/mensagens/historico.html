@@ -1,52 +1,34 @@
 {% extends "mensagens/base.html" %}
 
-{% block titulo %}Histórico — Emailing{% endblock %}
+{% block titulo %}Enviados — Emailing{% endblock %}
 
 {% block conteudo %}
-<div class="cartao largo">
-	<h1>Histórico de envios</h1>
+<header class="cabeca">
+	<h1>Enviados</h1>
+	<span class="total">{{ pagina.paginator.count }} mensage{{ pagina.paginator.count|pluralize:"m,ns" }}{% if q %} para “{{ q }}”{% endif %}</span>
+	<form class="busca" role="search" method="get" action="{% url 'mensagens:historico' %}">
+		<svg class="ico" aria-hidden="true"><use href="#i-busca"/></svg>
+		<input type="search" name="q" value="{{ q }}" placeholder="Buscar nos enviados" title="Busca no assunto, no destinatário e no alias" aria-label="Buscar nos enviados">
+	</form>
+</header>
 
+<div class="conteudo">
 	{% if pagina.object_list %}
-	<div class="tabela-rolavel">
-		<table>
-			<thead>
-				<tr>
-					<th>Data</th>
-					<th>Alias</th>
-					<th>Para</th>
-					<th>Assunto</th>
-					<th>Status</th>
-					<th></th>
-				</tr>
-			</thead>
-			<tbody>
-				{% for item in pagina %}
-				<tr>
-					<td><a href="{% url 'mensagens:registro' item.pk %}">{{ item.criado_em|date:"d/m/Y H:i" }}</a></td>
-					<td><code>{{ item.alias }}</code></td>
-					<td>{{ item.para|truncatechars:50 }}</td>
-					<td>{{ item.assunto|default:"(sem assunto)"|truncatechars:50 }}</td>
-					<td><span class="selo {{ item.selo_css }}">{{ item.get_status_display }}</span></td>
-					<td>
-						{% if item.status == "enviado" %}
-						<a href="{% url 'mensagens:inicio' %}?responder={{ item.pk }}">responder</a>
-						{% endif %}
-					</td>
-				</tr>
-				{% endfor %}
-			</tbody>
-		</table>
-	</div>
+	<ul class="lista">
+		{% for item in pagina %}{% include "mensagens/_linha_envio.html" %}{% endfor %}
+	</ul>
 
 	{% if pagina.has_other_pages %}
-	<nav class="paginacao">
-		{% if pagina.has_previous %}<a href="?pagina={{ pagina.previous_page_number }}">&larr; anterior</a>{% endif %}
-		<span class="nota">página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
-		{% if pagina.has_next %}<a href="?pagina={{ pagina.next_page_number }}">próxima &rarr;</a>{% endif %}
+	<nav class="paginacao" aria-label="Páginas">
+		{% if pagina.has_previous %}<a class="botao" href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}pagina={{ pagina.previous_page_number }}">Anterior</a>{% endif %}
+		<span class="nota mono">{{ pagina.number }} / {{ pagina.paginator.num_pages }}</span>
+		{% if pagina.has_next %}<a class="botao" href="?{% if q %}q={{ q|urlencode }}&amp;{% endif %}pagina={{ pagina.next_page_number }}">Próxima</a>{% endif %}
 	</nav>
 	{% endif %}
+	{% elif q %}
+	<div class="vazio"><strong>Nada encontrado.</strong>Nenhum envio tem “{{ q }}” no assunto, no destinatário ou no alias. <a href="{% url 'mensagens:historico' %}">Limpar a busca</a>.</div>
 	{% else %}
-	<p class="nota">Nenhum envio ainda.</p>
+	<div class="vazio"><strong>Nenhum envio ainda.</strong>O que você enviar aparece aqui, do mais recente para o mais antigo. <a href="{% url 'mensagens:inicio' %}">Escrever a primeira mensagem</a>.</div>
 	{% endif %}
 </div>
 {% endblock %}
