@@ -298,13 +298,13 @@ class FormularioConta(forms.ModelForm):
         model = ContaEmail
         fields = [
             "nome", "host", "porta", "usuario", "senha", "cifra", "timeout",
-            "dominios_permitidos", "envelope_from", "ativa",
+            "dominios_permitidos", "envelope_from", "ativa", "imap_host", "imap_porta",
         ]
         labels = {
             "nome": "Nome", "host": "Servidor SMTP", "porta": "Porta",
             "usuario": "Conta que autentica", "timeout": "Timeout (segundos)",
             "dominios_permitidos": "Domínios permitidos", "envelope_from": "Envelope fixo",
-            "ativa": "Conta ativa",
+            "ativa": "Conta ativa", "imap_host": "Servidor IMAP", "imap_porta": "Porta IMAP",
         }
 
     def __init__(self, *args, **kwargs):
@@ -314,6 +314,11 @@ class FormularioConta(forms.ModelForm):
             self.fields["cifra"].initial = "ssl"
         else:
             self.fields["cifra"].initial = "ssl" if self.instance.usar_ssl else "tls"
+        # Recebimento é opcional: porta em branco é a 993 de sempre.
+        self.fields["imap_porta"].required = False
+
+    def clean_imap_porta(self):
+        return self.cleaned_data.get("imap_porta") or 993
 
     def clean(self):
         limpos = super().clean()

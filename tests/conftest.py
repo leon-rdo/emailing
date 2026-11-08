@@ -50,3 +50,18 @@ def criar_alias(conta_de_teste):
         )
 
     return fabricar
+
+
+@pytest.fixture
+def imap(conta_de_teste, monkeypatch):
+    """Um servidor IMAP falso no lugar do `imaplib.IMAP4_SSL`, e a conta de
+    teste com recebimento ligado. Ver `tests/imap_falso.py`."""
+    from imap_falso import ServidorFalso
+
+    import mensagens.caixa
+
+    servidor = ServidorFalso()
+    monkeypatch.setattr(mensagens.caixa.imaplib, "IMAP4_SSL", servidor.conexao)
+    conta_de_teste.imap_host = "imap.exemplo.test"
+    conta_de_teste.save()
+    return servidor

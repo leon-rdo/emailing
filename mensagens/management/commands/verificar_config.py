@@ -48,6 +48,8 @@ class Command(BaseCommand):
             print(f"  domínios ok ... {', '.join(conta.dominios) or '(NENHUM!)'}")
             print(f"  envelope ...... {conta.envelope_from or '(o próprio alias)'}")
             print(f"  timeout ....... {conta.timeout}s")
+            recebimento = f"{conta.imap_host}:{conta.imap_porta}" if conta.imap_host else "(não)"
+            print(f"  IMAP .......... {recebimento}")
             print()
 
         for alias in carregar_aliases():
@@ -100,6 +102,10 @@ class Command(BaseCommand):
                     "servidor": f"{alias.conta.host}:{alias.conta.porta}",
                     "cifra": "ssl" if alias.conta.usar_ssl else "starttls",
                     "assinatura": origem_da_assinatura(alias),
+                    "imap": (
+                        f"{alias.conta.imap_host}:{alias.conta.imap_porta}"
+                        if alias.conta.imap_host else None
+                    ),
                 }
                 for alias in carregar_aliases()
             ],

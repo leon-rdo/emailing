@@ -18,6 +18,7 @@ dependencies = [
     "qrcode>=8.0",
     "css-inline>=0.14",
     "cryptography>=42",
+    "mcp>=2.3,<3",
 ]
 
 [dependency-groups]

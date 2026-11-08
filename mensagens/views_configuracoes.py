@@ -18,6 +18,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 
+from .caixa import ErroCaixa, testar_login
 from .forms import FormularioAlias, FormularioConta
 from .models import Alias, ContaEmail
 from .montagem import DadosRedacao, emoldurar_para_previa, montar_corpo
@@ -74,6 +75,8 @@ def testar_conta(request):
 
     Serve para conferir os dados da conta antes de salvá-la. Senha em branco
     usa a que já está guardada (quando se está editando uma conta existente).
+    Com servidor IMAP preenchido, autentica nele também — mesma senha, mesma
+    caixa — e também só isso: não lê nada.
     """
     host = request.POST.get("host", "").strip()
     usuario = request.POST.get("usuario", "").strip()
@@ -99,6 +102,16 @@ def testar_conta(request):
             servidor.login(usuario, senha)
     except Exception as exc:  # o que importa é a explicação, não o tipo
         return JsonResponse({"ok": False, "erro": _explicar(exc, host, porta)})
+
+    imap_host = request.POST.get("imap_host", "").strip()
+    if imap_host:
+        try:
+            imap_porta = int(request.POST.get("imap_porta") or 993)
+            testar_login(imap_host, imap_porta, usuario, senha, timeout)
+        except ValueError:
+            return JsonResponse({"ok": False, "erro": "A porta IMAP precisa ser um número."})
+        except ErroCaixa as exc:
+            return JsonResponse({"ok": False, "erro": f"SMTP ok, mas o IMAP falhou: {exc}"})
     return JsonResponse({"ok": True})
 
 

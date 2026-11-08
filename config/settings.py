@@ -363,6 +363,28 @@ AGENDADOS_AVISAR_ALIAS = os.environ.get("AGENDADOS_AVISAR_ALIAS", "").strip()
 
 
 # ---------------------------------------------------------------------------
+# Servidor MCP e recebimento por IMAP
+# ---------------------------------------------------------------------------
+#
+# `manage.py mcp`, aberto pelo Claude Code por ssh (ver docs/decisoes.md#mcp).
+
+# Envios + agendamentos por sessão (= por processo). Cada envio já pede
+# aprovação no Claude Code; isto freia um agente em laço, inclusive um levado
+# por um e-mail recebido que "pede" para encaminhar algo. `0` desliga o envio
+# pelo MCP (fica só rascunho).
+MCP_MAX_ENVIOS_POR_SESSAO = env_int("MCP_MAX_ENVIOS_POR_SESSAO", 10)
+# Caracteres de corpo devolvidos por `ler_email`. Mensagem maior volta cortada,
+# com `corpo_truncado: true`.
+MCP_LIMITE_CORPO = env_int("MCP_LIMITE_CORPO", 100_000)
+# Mensagem maior que isto não é baixada (o conteúdo vive só em memória).
+IMAP_MAX_BYTES = env_int("IMAP_MAX_BYTES", 30 * 1024 * 1024)
+# Servidor sem SORT (RFC 5256) — a GoDaddy — obriga a ordenar por data aqui:
+# lê-se o `Date` das N mensagens que chegaram por último à pasta que casam com
+# a busca. Mais que isso é uma ida e volta grande demais para cada busca.
+IMAP_JANELA_ORDENACAO = env_int("IMAP_JANELA_ORDENACAO", 2000)
+
+
+# ---------------------------------------------------------------------------
 # Log
 # ---------------------------------------------------------------------------
 

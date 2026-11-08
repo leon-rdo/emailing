@@ -59,6 +59,16 @@ class ContaEmail(models.Model):
     )
     ativa = models.BooleanField("ativa", default=True)
 
+    # Recebimento, só pelo servidor MCP (a tela continua sem caixa de entrada).
+    # A senha é a mesma: é a mesma caixa. Só SSL direto — IMAP com STARTTLS na
+    # 143 não é oferecido por nenhum provedor em uso e seria uma segunda cifra
+    # para errar. Ver mensagens/caixa.py.
+    imap_host = models.CharField(
+        "servidor IMAP", max_length=255, blank=True,
+        help_text="Vazio = sem recebimento. Ex.: imap.hostinger.com, imap.secureserver.net",
+    )
+    imap_porta = models.PositiveIntegerField("porta IMAP", default=993)
+
     class Meta:
         ordering = ["nome"]
         verbose_name = "conta de e-mail"

@@ -49,7 +49,7 @@
 		<div class="teste-conexao">
 			<button type="button" id="testar-conexao">Testar conexão</button>
 			<span class="resultado-teste" role="status"></span>
-			<small>Conecta e autentica; não envia nenhuma mensagem.</small>
+			<small>Conecta e autentica (no IMAP também, se preenchido); não envia nenhuma mensagem.</small>
 		</div>
 
 		<h2 class="grupo">Envio</h2>
@@ -59,6 +59,13 @@
 			{% include "mensagens/_campo.html" with campo=form.timeout %}
 		</div>
 		<label class="alternar alternar-grande">{{ form.ativa }} Conta ativa <span class="mudo">(desativada, nenhum alias dela envia)</span></label>
+
+		<h2 class="grupo">Recebimento</h2>
+		<div class="par">
+			{% include "mensagens/_campo.html" with campo=form.imap_host %}
+			{% include "mensagens/_campo.html" with campo=form.imap_porta %}
+		</div>
+		<p class="mudo">Só pelo servidor MCP, para o Claude Code ler e responder. Usa a mesma senha, por SSL direto. A tela continua sem caixa de entrada.</p>
 
 		<div class="acoes">
 			<button type="submit" class="primario">Salvar conta</button>
