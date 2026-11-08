@@ -6,8 +6,8 @@ dispositivo é criado, sem passar por lugar nenhum no caminho.
 
 Uso:
 
-    manage.py criar_totp leonardo
-    manage.py criar_totp leonardo --substituir   # descarta os anteriores
+    manage.py criar_totp operador
+    manage.py criar_totp operador --substituir   # descarta os anteriores
 """
 
 import qrcode

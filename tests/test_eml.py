@@ -36,7 +36,7 @@ def test_eml_quoted_printable_multipart():
 
     # References dobrado em várias linhas + Message-ID do original no final.
     assert resultado.referencias == (
-        "<primeira-mensagem@leonardocosta.dev> "
+        "<primeira-mensagem@empresa.example> "
         "<resposta-automatica@exemplo.com> "
         "<abc123_ticket9001@exemplo.com>"
     )

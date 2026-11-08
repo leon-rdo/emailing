@@ -68,7 +68,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # Uma língua só, para sempre. Não vale uma variável de ambiente.
 LANGUAGE_CODE = "pt-br"
-TIME_ZONE = os.environ.get("TIME_ZONE", "America/Belem")
+TIME_ZONE = os.environ.get("TIME_ZONE", "America/Sao_Paulo")
 USE_I18N = True
 USE_TZ = True
 
@@ -192,7 +192,9 @@ LOGOUT_REDIRECT_URL = "/entrar/"
 
 # `0` só em desenvolvimento, para um banco local novo não exigir matrícula de celular.
 OTP_OBRIGATORIO = env_bool("OTP_OBRIGATORIO", True)
-OTP_TOTP_ISSUER = "Emailing leonardocosta.dev"
+# O nome que o app autenticador mostra ao lado do código. Só vale para
+# dispositivos criados depois de mudar; os existentes continuam funcionando.
+OTP_TOTP_ISSUER = os.environ.get("OTP_TOTP_ISSUER", "Emailing")
 # O padrão do django-otp é False — o admin mostraria a chave secreta do TOTP
 # (e o link do QR, que revela a mesma chave) em texto puro no formulário do
 # TOTPDevice. Não é um botão: é o certo, sempre.

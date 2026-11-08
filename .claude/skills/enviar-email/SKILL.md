@@ -1,6 +1,6 @@
 ---
 name: enviar-email
-description: Enviar, conferir, agendar, ler ou responder e-mail pelos aliases do Emailing (emailing.leonardocosta.dev). Use quando o pedido for mandar um e-mail, programar um envio, ver o que sairia antes de mandar, ler ou buscar e-mails recebidos, responder a um e-mail, listar a fila de agendados ou cancelar um agendamento. Prefere as tools MCP `mcp__emailing__*`; sem elas, usa `ssh leonardo_contabo 'emailing …'`.
+description: Enviar, conferir, agendar, ler ou responder e-mail pelos aliases do Emailing. Use quando o pedido for mandar um e-mail, programar um envio, ver o que sairia antes de mandar, ler ou buscar e-mails recebidos, responder a um e-mail, listar a fila de agendados ou cancelar um agendamento. Prefere as tools MCP `mcp__emailing__*`; sem elas, usa `ssh <servidor> 'emailing …'`.
 ---
 
 # Enviar e ler e-mail pelo Emailing
@@ -36,7 +36,8 @@ Regras:
 
 Só envia (não lê a caixa).
 
-O envio acontece **em produção**, por `ssh leonardo_contabo`, com o comando
+O envio acontece **em produção**, por ssh no servidor — os exemplos usam
+`ssh meu-servidor`; o host real da implantação está no `CLAUDE.local.md` —, com o comando
 `emailing` (atalho para `manage.py` rodando como o usuário do serviço). A
 autenticação é a chave ssh: não existe API HTTP, de propósito — ver
 `docs/decisoes.md`.
@@ -49,7 +50,7 @@ Toda mensagem entra no mesmo `RegistroEnvio` da tela, visível em
 **1. Descobrir os aliases** (nunca chute o slug):
 
 ```bash
-ssh leonardo_contabo 'emailing verificar_config --json'
+ssh meu-servidor 'emailing verificar_config --json'
 ```
 
 Devolve `aliases[]` com `slug`, `endereco`, `remetente`, `conta` e `servidor`, e
@@ -60,7 +61,7 @@ argumento**: `argv` aparece no `ps` de outros usuários da máquina e vai para o
 histórico do shell.
 
 ```bash
-ssh leonardo_contabo 'cat > /tmp/corpo.html' <<'HTML'
+ssh meu-servidor 'cat > /tmp/corpo.html' <<'HTML'
 <p>Bom dia,</p>
 <p>…</p>
 HTML
@@ -70,7 +71,7 @@ HTML
 HTML/texto exatamente como sairiam, sem enviar nada:
 
 ```bash
-ssh leonardo_contabo 'emailing enviar --alias financeiro \
+ssh meu-servidor 'emailing enviar --alias financeiro \
     --para "cliente@exemplo.com" --assunto "Proposta" \
     --corpo-arquivo /tmp/corpo.html --conferir'
 ```
@@ -81,7 +82,7 @@ o `--conferir` para enviar de verdade.
 **4. Enviar** (ou agendar, com `--em`):
 
 ```bash
-ssh leonardo_contabo 'emailing enviar --alias financeiro \
+ssh meu-servidor 'emailing enviar --alias financeiro \
     --para "cliente@exemplo.com" --assunto "Proposta" \
     --corpo-arquivo /tmp/corpo.html --json'
 ```
@@ -96,14 +97,14 @@ registrada no histórico do mesmo jeito.
 `"10/09/2026 09:00"` e `"2026-09-10T09:00"`, no fuso do app.
 
 ```bash
-ssh leonardo_contabo 'emailing enviar --alias financeiro --para c@x.com \
+ssh meu-servidor 'emailing enviar --alias financeiro --para c@x.com \
     --assunto "Lembrete" --corpo-arquivo /tmp/corpo.html --em "2026-09-10 09:00"'
 ```
 
 Quem despacha é o cron, de minuto em minuto. Ver e cancelar:
 
 ```bash
-ssh leonardo_contabo 'emailing despachar_agendados --conferir --json'  # o que está vencido
+ssh meu-servidor 'emailing despachar_agendados --conferir --json'  # o que está vencido
 ```
 
 A fila completa e o botão de cancelar ficam em `/agendados/` na interface web.

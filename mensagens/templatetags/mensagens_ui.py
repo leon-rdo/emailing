@@ -34,7 +34,7 @@ def trecho(corpo_html, tamanho=110) -> str:
     só desfaz as entidades (`&nbsp;`, `&amp;`) que o `strip_tags` deixa.
     """
     # Troca a marcação por espaço antes: `<br>` e `</p>` somem no `strip_tags`
-    # e "Leonardo<br>Costa" viraria "LeonardoCosta".
+    # e "Ana<br>Souza" viraria "AnaSouza".
     texto = html.unescape(strip_tags(re.sub(r"<[^>]+>", " ", corpo_html or "")))
     texto = " ".join(texto.split())
     tamanho = int(tamanho)

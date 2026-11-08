@@ -42,9 +42,9 @@ def _daqui_a(horas=2):
 def test_listar_aliases(alias_de_teste, imap):
     resultado = m.listar_aliases()
     assert resultado["aliases"][0]["slug"] == "financeiro"
-    assert resultado["aliases"][0]["caixa"] == "me@leonardocosta.dev"
+    assert resultado["aliases"][0]["caixa"] == "me@empresa.example"
     assert resultado["caixas"] == [
-        {"caixa": "me@leonardocosta.dev", "nome": "Conta de teste", "recebimento": True}
+        {"caixa": "me@empresa.example", "nome": "Conta de teste", "recebimento": True}
     ]
 
 
@@ -66,7 +66,7 @@ def test_buscar_e_ler_pela_caixa_ou_pelo_alias(alias_de_teste, imap):
     imap.entregar(mensagem_de_exemplo())
 
     por_alias = m.buscar_emails(caixa="financeiro")
-    por_caixa = m.buscar_emails(caixa="me@leonardocosta.dev")
+    por_caixa = m.buscar_emails(caixa="me@empresa.example")
     assert por_alias["mensagens"] == por_caixa["mensagens"]
     item = por_alias["mensagens"][0]
     assert item["assunto"] == "Proposta de parceria"

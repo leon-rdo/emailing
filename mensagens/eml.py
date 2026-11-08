@@ -4,7 +4,7 @@ trecho original já sanitizado para citação.
 
 Trabalha só sobre bytes limitados, em memória — a correspondência importada é
 de terceiros (ver `views.importar_eml`, que força `MemoryFileUploadHandler`
-para nunca tocar o disco, no mesmo padrão do `gloryrics`).
+para nunca tocar o disco).
 """
 
 from __future__ import annotations

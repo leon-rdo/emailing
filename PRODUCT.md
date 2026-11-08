@@ -7,7 +7,7 @@
 web
 
 ## Users
-Uma pessoa só: o operador (Leonardo), dono de vários domínios, que manda e-mail
+Uma pessoa só: o operador, dono de vários domínios, que manda e-mail
 profissional por **alias** sem pagar uma caixa por endereço. Usa em desktop de tela
 larga, redigindo mensagens reais para clientes e contatos, muitas vezes respondendo a
 um e-mail que recebeu (importa um `.eml`). Agentes (Claude Code) usam o servidor MCP

@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Detalhes de uma implantação real (IP, hosts ssh, domínios). O repo é público.
+CLAUDE.local.md
+
 # Estado em runtime: banco, assinaturas e anexos de rascunho.
 # APAGAR data/ APAGA O HISTÓRICO DE ENVIOS E AS ASSINATURAS.
 data/

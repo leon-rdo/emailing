@@ -48,7 +48,7 @@ def test_dados_do_remetente_e_destinatario(alias_de_teste):
         alias_de_teste, dados, escapar_html=True,
     )
     assert resultado == (
-        "financeiro@leonardocosta.dev | Leonardo Costa | cliente@exemplo.com | Proposta"
+        "financeiro@empresa.example | Ana Souza | cliente@exemplo.com | Proposta"
     )
 
 
@@ -106,4 +106,4 @@ def test_hash_e_do_conteudo_autoral_nao_do_expandido(alias_de_teste):
 
 def test_marcador_no_texto_simples_nao_fica_escapado(alias_de_teste):
     mensagem = montar_email(_dados("<p>{{ remetente_email }}</p>"), alias_de_teste)
-    assert "financeiro@leonardocosta.dev" in mensagem.body
+    assert "financeiro@empresa.example" in mensagem.body

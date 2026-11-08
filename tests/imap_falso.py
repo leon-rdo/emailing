@@ -17,7 +17,7 @@ from email.utils import parsedate_to_datetime
 def mensagem_de_exemplo(
     assunto="Proposta de parceria",
     de="Cliente <cliente@exemplo.test>",
-    para="financeiro@leonardocosta.dev",
+    para="financeiro@empresa.example",
     message_id="<original@exemplo.test>",
     referencias="<primeira@exemplo.test>",
     texto="Olá, segue a proposta.\nAbraço.",

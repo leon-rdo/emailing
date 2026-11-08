@@ -14,7 +14,7 @@ SENHA = "uma-senha-bem-comprida-123"
 @pytest.fixture
 def usuario():
     return get_user_model().objects.create_superuser(
-        username="leonardo", email="me@leonardocosta.dev", password=SENHA
+        username="operador", email="me@empresa.example", password=SENHA
     )
 
 
@@ -35,7 +35,7 @@ def test_pagina_de_login_e_publica(client):
 @override_settings(OTP_OBRIGATORIO=False)
 def test_login_sem_otp_em_desenvolvimento(client, usuario):
     resposta = client.post(
-        "/entrar/", {"username": "leonardo", "password": SENHA}, follow=True
+        "/entrar/", {"username": "operador", "password": SENHA}, follow=True
     )
     assert resposta.status_code == 200
     assert resposta.wsgi_request.user.is_authenticated
@@ -44,7 +44,7 @@ def test_login_sem_otp_em_desenvolvimento(client, usuario):
 @override_settings(OTP_OBRIGATORIO=True)
 def test_senha_certa_sem_dispositivo_nao_entra(client, usuario):
     """Sessão autenticada mas não verificada é encerrada pelo middleware."""
-    client.post("/entrar/", {"username": "leonardo", "password": SENHA})
+    client.post("/entrar/", {"username": "operador", "password": SENHA})
     resposta = client.get("/")
     assert resposta.status_code == 302
     assert resposta.headers["Location"].startswith("/entrar/")
@@ -53,7 +53,7 @@ def test_senha_certa_sem_dispositivo_nao_entra(client, usuario):
 @override_settings(OTP_OBRIGATORIO=True)
 def test_com_dispositivo_o_token_e_obrigatorio(client, usuario):
     TOTPDevice.objects.create(user=usuario, name="teste", confirmed=True)
-    resposta = client.post("/entrar/", {"username": "leonardo", "password": SENHA})
+    resposta = client.post("/entrar/", {"username": "operador", "password": SENHA})
     # Fica na página de login: o formulário recusa sem o código.
     assert resposta.status_code == 200
     assert not resposta.wsgi_request.user.is_authenticated
@@ -65,7 +65,7 @@ def test_token_correto_entra_com_dispositivo_unico(client, usuario):
     dispositivo = TOTPDevice.objects.create(user=usuario, name="teste", confirmed=True)
     resposta = client.post(
         "/entrar/",
-        {"username": "leonardo", "password": SENHA, "otp_token": _token(dispositivo)},
+        {"username": "operador", "password": SENHA, "otp_token": _token(dispositivo)},
         follow=True,
     )
     assert resposta.wsgi_request.user.is_authenticated
@@ -79,14 +79,14 @@ def test_com_dois_dispositivos_a_escolha_volta_a_ser_obrigatoria(client, usuario
 
     recusado = client.post(
         "/entrar/",
-        {"username": "leonardo", "password": SENHA, "otp_token": _token(primeiro)},
+        {"username": "operador", "password": SENHA, "otp_token": _token(primeiro)},
     )
     assert not recusado.wsgi_request.user.is_authenticated
 
     aceito = client.post(
         "/entrar/",
         {
-            "username": "leonardo",
+            "username": "operador",
             "password": SENHA,
             "otp_device": primeiro.persistent_id,
             "otp_token": _token(primeiro),
@@ -100,7 +100,7 @@ def test_com_dois_dispositivos_a_escolha_volta_a_ser_obrigatoria(client, usuario
 def test_token_errado_nao_entra(client, usuario):
     TOTPDevice.objects.create(user=usuario, name="teste", confirmed=True)
     resposta = client.post(
-        "/entrar/", {"username": "leonardo", "password": SENHA, "otp_token": "000000"}
+        "/entrar/", {"username": "operador", "password": SENHA, "otp_token": "000000"}
     )
     assert resposta.status_code == 200
     assert not resposta.wsgi_request.user.is_authenticated
@@ -109,9 +109,9 @@ def test_token_errado_nao_entra(client, usuario):
 @override_settings(AXES_FAILURE_LIMIT=3, OTP_OBRIGATORIO=False)
 def test_lockout_depois_do_limite(client, usuario):
     for _ in range(3):
-        client.post("/entrar/", {"username": "leonardo", "password": "errada"})
+        client.post("/entrar/", {"username": "operador", "password": "errada"})
     # A senha certa não vale mais: o axes corta antes do backend.
-    resposta = client.post("/entrar/", {"username": "leonardo", "password": SENHA})
+    resposta = client.post("/entrar/", {"username": "operador", "password": SENHA})
     assert resposta.status_code in (403, 429)
     assert not resposta.wsgi_request.user.is_authenticated
 

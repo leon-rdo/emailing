@@ -556,10 +556,9 @@ def importar_eml(request):
     A troca de upload handler precisa acontecer aqui, na view externa, antes
     de qualquer leitura de `request.POST` — inclusive a que o próprio
     `@csrf_protect` da view interna faz para achar o token do CSRF. Depois
-    desse ponto não tem mais como forçar o arquivo a ficar só em memória
-    (mesmo padrão do `gloryrics`, que existe pelo mesmo motivo: a
-    correspondência importada aqui é de terceiros e nunca deveria tocar
-    disco).
+    desse ponto não tem mais como forçar o arquivo a ficar só em memória — e
+    a correspondência importada aqui é de terceiros, que nunca deveria tocar
+    disco.
     """
     request.upload_handlers = [MemoryFileUploadHandler(request)]
     if request.method == "POST":

@@ -2,7 +2,7 @@
 # Atualiza a implantação. Rodar como root no servidor, DEPOIS de o código novo
 # já estar em /var/www/emailing (git pull, rsync ou o que for).
 #
-#     ssh leonardo_contabo 'bash /var/www/emailing/deploy/implantar.sh'
+#     ssh meu-servidor 'bash /var/www/emailing/deploy/implantar.sh'
 #
 set -euo pipefail
 
@@ -10,7 +10,14 @@ ALVO="${ALVO:-/var/www/emailing}"
 UV="${UV:-/usr/local/bin/uv}"
 SERVICO="${SERVICO:-emailing}"
 PORTA="${PORTA:-8010}"
-DOMINIO="${DOMINIO:-emailing.leonardocosta.dev}"
+# O domínio do smoke test sai do primeiro host do ALLOWED_HOSTS do .env, que é
+# o mesmo valor que o Django exige no cabeçalho Host.
+DOMINIO="${DOMINIO:-$(grep -E '^ALLOWED_HOSTS=' "$ALVO/.env" 2>/dev/null | head -1 \
+    | cut -d= -f2- | tr -d "\"'" | cut -d, -f1 || true)}"
+if [ -z "$DOMINIO" ]; then
+    echo "defina ALLOWED_HOSTS no $ALVO/.env (ou DOMINIO=… no ambiente)" >&2
+    exit 1
+fi
 
 # O interpretador que o uv gerencia precisa ficar fora de /root: o serviço roda
 # como `emailing`, e mesmo com permissão de leitura o ProtectHome=true do unit

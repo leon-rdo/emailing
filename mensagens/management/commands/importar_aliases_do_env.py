@@ -46,8 +46,11 @@ class Command(BaseCommand):
 
         usuario = os.environ.get("SMTP_USER", "").strip()
         senha = os.environ.get("SMTP_PASSWORD", "").strip()
-        if not usuario or not senha:
-            self.stderr.write(self.style.ERROR("SMTP_USER e SMTP_PASSWORD são obrigatórios."))
+        host = os.environ.get("SMTP_HOST", "").strip()
+        if not usuario or not senha or not host:
+            self.stderr.write(
+                self.style.ERROR("SMTP_HOST, SMTP_USER e SMTP_PASSWORD são obrigatórios.")
+            )
             raise SystemExit(1)
 
         from django.conf import settings
@@ -58,7 +61,7 @@ class Command(BaseCommand):
 
         conta, criada = ContaEmail.objects.get_or_create(
             usuario=usuario,
-            host=os.environ.get("SMTP_HOST", "smtpout.secureserver.net").strip(),
+            host=host,
             defaults={
                 "nome": f"Importada do .env ({usuario})",
                 "porta": int(os.environ.get("SMTP_PORT", "587")),

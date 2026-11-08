@@ -14,9 +14,9 @@ def conta_de_teste(db):
         nome="Conta de teste",
         host="smtp.exemplo.test",
         porta=587,
-        usuario="me@leonardocosta.dev",
+        usuario="me@empresa.example",
         usar_tls=True,
-        dominios_permitidos="leonardocosta.dev",
+        dominios_permitidos="empresa.example",
     )
     conta.senha = "segredo-de-teste"
     conta.save()
@@ -31,8 +31,8 @@ def alias_de_teste(conta_de_teste):
     return Alias.objects.create(
         conta=conta_de_teste,
         slug="financeiro",
-        endereco="financeiro@leonardocosta.dev",
-        nome_exibicao="Leonardo Costa",
+        endereco="financeiro@empresa.example",
+        nome_exibicao="Ana Souza",
     )
 
 
@@ -45,7 +45,7 @@ def criar_alias(conta_de_teste):
         return Alias.objects.create(
             conta=extra.pop("conta", conta_de_teste),
             slug=slug,
-            endereco=endereco or f"{slug}@leonardocosta.dev",
+            endereco=endereco or f"{slug}@empresa.example",
             **extra,
         )
 

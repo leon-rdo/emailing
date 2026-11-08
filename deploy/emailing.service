@@ -1,8 +1,8 @@
 # Instalar em /etc/systemd/system/emailing.service
 #
-# Ao contrário de pholium.service e leonardo-pholium.service, que rodam como
-# root, este serviço tem usuário de sistema próprio: o processo guarda a
+# Roda com usuário de sistema próprio, nunca como root: o processo guarda a
 # credencial do SMTP e pode enviar e-mail com DMARC alinhado pelo domínio.
+# Criar antes: useradd --system --no-create-home --shell /usr/sbin/nologin emailing
 
 [Unit]
 Description=Emailing — envio de e-mail por alias (gunicorn)

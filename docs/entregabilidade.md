@@ -36,15 +36,17 @@ e-mail, o envelope muda e o SPF quebra; só o DKIM continua válido. Domínio co
 `p=quarantine`/`p=reject` e sem DKIM entrega bem no caminho direto e vai para
 quarentena assim que for encaminhado.
 
-Estado observado nos domínios em uso:
+Para cada domínio dos aliases, confira e anote três coisas (o `CLAUDE.local.md`
+de uma implantação é um bom lugar para guardar o estado de cada um):
 
-- **`leonardocosta.dev`** — SPF `include:secureserver.net -all`, DKIM
-  publicado (`secureserver2`), DMARC `p=reject` com alinhamento relaxado.
-  Confirmado num `.eml` recebido: `dkim=pass`, `dmarc=pass`.
-- **`altaris.love`** — SPF `include:_spf.mail.hostinger.com ~all`, DMARC
-  `p=quarantine`, **sem DKIM publicado** nos seletores comuns da Hostinger.
-  Funciona no caminho direto (alinha por SPF), mas quebra em encaminhamento.
-  *Pendente: ativar DKIM no painel da Hostinger.*
+- **SPF** incluindo o provedor — por exemplo `include:secureserver.net` na
+  GoDaddy ou `include:_spf.mail.hostinger.com` na Hostinger;
+- **DKIM** publicado no seletor do provedor, confirmado num `.eml` recebido
+  (`dkim=pass` no `Authentication-Results`);
+- **DMARC** e a política (`p=none`, `p=quarantine`, `p=reject`).
+
+Um domínio com `p=quarantine` e sem DKIM funciona no caminho direto (alinha por
+SPF), mas vai para quarentena assim que alguém encaminhar a mensagem.
 
 Verificar rapidamente:
 

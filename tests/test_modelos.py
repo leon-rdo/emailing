@@ -15,10 +15,10 @@ SENHA = "uma-senha-bem-comprida-123"
 def _registro(**extra):
     dados = {
         "alias": "financeiro",
-        "remetente": "Leonardo Costa <financeiro@leonardocosta.dev>",
+        "remetente": "Ana Souza <financeiro@empresa.example>",
         "para": "cliente@example.com",
         "assunto": "Assunto de teste",
-        "message_id": "<abc123@leonardocosta.dev>",
+        "message_id": "<abc123@empresa.example>",
         "status": RegistroEnvio.Status.ENVIADO,
     }
     dados.update(extra)
@@ -33,17 +33,17 @@ def logado(client):
     problema e ainda exercita o caminho real.
     """
     usuario = get_user_model().objects.create_superuser(
-        username="leonardo", email="me@leonardocosta.dev", password=SENHA
+        username="operador", email="me@empresa.example", password=SENHA
     )
     with override_settings(OTP_OBRIGATORIO=False):
-        client.post(reverse("mensagens:entrar"), {"username": "leonardo", "password": SENHA})
+        client.post(reverse("mensagens:entrar"), {"username": "operador", "password": SENHA})
     return usuario
 
 
 def test_message_id_e_unico():
-    _registro(message_id="<repetido@leonardocosta.dev>")
+    _registro(message_id="<repetido@empresa.example>")
     with pytest.raises(IntegrityError):
-        _registro(message_id="<repetido@leonardocosta.dev>")
+        _registro(message_id="<repetido@empresa.example>")
 
 
 def test_ordenacao_padrao_do_mais_novo():

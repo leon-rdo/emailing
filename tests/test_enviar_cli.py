@@ -131,7 +131,7 @@ def test_json_de_envio_e_legivel_por_maquina(alias_de_teste, tmp_path):
     dados = json.loads(saida)
     assert dados["ok"] is True
     assert dados["acao"] == "enviar"
-    assert dados["message_id"].endswith("@leonardocosta.dev>")
+    assert dados["message_id"].endswith("@empresa.example>")
     assert dados["historico"] == f"/historico/{RegistroEnvio.objects.get().pk}/"
 
 
@@ -185,7 +185,7 @@ def test_conferir_nao_envia_nada(alias_de_teste, tmp_path):
     assert mail.outbox == []
     assert RegistroEnvio.objects.count() == 0
     assert "Nada foi enviado" in saida
-    assert "financeiro@leonardocosta.dev" in saida
+    assert "financeiro@empresa.example" in saida
 
 
 def test_conferir_mostra_o_html_que_sairia(alias_de_teste, tmp_path):
@@ -222,8 +222,8 @@ def test_conferir_em_json(alias_de_teste, tmp_path):
     )
     dados = json.loads(saida)
     assert dados["acao"] == "conferir"
-    assert dados["remetente"] == "Leonardo Costa <financeiro@leonardocosta.dev>"
-    assert dados["envelope"] == "financeiro@leonardocosta.dev"
+    assert dados["remetente"] == "Ana Souza <financeiro@empresa.example>"
+    assert dados["envelope"] == "financeiro@empresa.example"
     assert "<p>Olá</p>" in dados["html"]
     assert "Olá" in dados["texto"]
 

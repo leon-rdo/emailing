@@ -15,10 +15,10 @@ class Migration(migrations.Migration):
             name='ContaEmail',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('nome', models.CharField(help_text='Só para você reconhecer, ex.: "Titan — leonardocosta.dev".', max_length=100, unique=True, verbose_name='nome')),
+                ('nome', models.CharField(help_text='Só para você reconhecer, ex.: "Titan — example.com".', max_length=100, unique=True, verbose_name='nome')),
                 ('host', models.CharField(max_length=255, verbose_name='servidor SMTP')),
                 ('porta', models.PositiveIntegerField(default=587, verbose_name='porta')),
-                ('usuario', models.CharField(help_text='A caixa real, não o alias. Ex.: me@leonardocosta.dev', max_length=320, verbose_name='conta que autentica')),
+                ('usuario', models.CharField(help_text='A caixa real, não o alias. Ex.: caixa@example.com', max_length=320, verbose_name='conta que autentica')),
                 ('senha_cifrada', models.TextField(blank=True, verbose_name='senha')),
                 ('usar_tls', models.BooleanField(default=True, verbose_name='STARTTLS (porta 587)')),
                 ('usar_ssl', models.BooleanField(default=False, verbose_name='SSL/TLS direto (porta 465)')),

@@ -247,7 +247,7 @@ def test_abrir_pasta_com_acento_vai_em_utf7(imap, conta_de_teste):
 
 def test_criterio_com_acento_vai_por_ultimo_como_literal():
     criterios, literal = caixa._criterios(
-        Filtro(de="joão", texto="proposta", para="financeiro@leonardocosta.dev",
+        Filtro(de="joão", texto="proposta", para="financeiro@empresa.example",
                desde=date(2026, 11, 1), ate=date(2026, 11, 8), nao_lidas=True)
     )
     assert "CHARSET" not in criterios  # quem põe o charset é o comando (SEARCH ou SORT)
@@ -339,21 +339,21 @@ def test_conjunto_compacta_faixas():
 # ---------------------------------------------------------------------------
 
 _RASTREADO = (
-    "https://www.mercadolivre.com.br/p/MLB50744239?matt_tool=15253984&utm_source=x"
+    "https://www.loja.example/p/MLB50744239?matt_tool=15253984&utm_source=x"
     "&utm_campaign=" + "a" * 300 + "#origem"
 )
 
 
 def test_texto_encurta_links_de_rastreamento(imap, conta_de_teste):
-    html = f'<p>Oferta: <a href="{_RASTREADO}">ver</a> e <a href="https://altaris.love">site</a></p>'
+    html = f'<p>Oferta: <a href="{_RASTREADO}">ver</a> e <a href="https://outra.example">site</a></p>'
     uid = imap.entregar(mensagem_de_exemplo(texto="", html=html, anexo=None))
     bruto = caixa.ler(_ref(conta_de_teste, imap, uid)).bruto
 
     lida = caixa.interpretar(bruto, formato="texto", limite=10_000)
 
-    assert "https://www.mercadolivre.com.br/p/MLB50744239…" in lida.corpo
+    assert "https://www.loja.example/p/MLB50744239…" in lida.corpo
     assert "utm_" not in lida.corpo
-    assert "https://altaris.love" in lida.corpo  # link curto e limpo fica intacto
+    assert "https://outra.example" in lida.corpo  # link curto e limpo fica intacto
     assert lida.links_encurtados == 1
 
 

@@ -4,11 +4,14 @@ Orientação para o Claude Code trabalhar neste repositório.
 
 ## O que é
 
-App Django de usuário único para enviar e-mail por **alias**, hospedado em
-`emailing.leonardocosta.dev`. O provedor cobra por caixa, não por endereço de
-saída: o app autentica com uma caixa real e põe o alias no `From:`.
+App Django de usuário único para enviar e-mail por **alias**, feito para rodar
+numa VPS própria, num subdomínio como `emailing.example.com`. O provedor cobra
+por caixa, não por endereço de saída: o app autentica com uma caixa real e põe o
+alias no `From:`.
 
-**Não tem relação nenhuma com o Pholium** — só compartilha a VPS.
+**Os detalhes da implantação em uso** — servidor, domínio, host ssh, o que mais
+roda na máquina, o estado do DNS de cada domínio — ficam no `CLAUDE.local.md`,
+fora do git. Leia-o se existir; o repositório em si é genérico de propósito.
 
 Tudo — código, comentários, mensagens de UI, docs — em **português**.
 
@@ -137,8 +140,8 @@ mensagens agendadas e dos rascunhos, que precisam sobreviver ao TTL (o rascunho
 salvo tem prazo próprio: `RASCUNHO_SALVO_EXPIRA_DIAS`, 30 dias sem alteração). **Apagar `data/` apaga
 tudo isso.**
 
-Há backup diário desde 2026-09-07 (`manage.py backup`, cron, 14 cópias em
-`/var/backups/emailing`), verificado antes de rotacionar. **Continua sem cópia
+Há backup diário (`manage.py backup`, cron instalado pelo `implantar.sh`, 14
+cópias em `/var/backups/emailing`), verificado antes de rotacionar. **Continua sem cópia
 fora da máquina** — é a pendência que sobrou (ver
 [docs/operacao.md](docs/operacao.md#estado-e-backup)).
 
@@ -146,7 +149,8 @@ O `SECRET_KEY` abre as senhas SMTP cifradas: perdê-lo exige redigitar todas.
 
 ## Onde roda
 
-VPS Contabo `203.0.113.10` (`ssh leonardo_contabo`), a mesma do Pholium
-(`api.leonardocosta.dev`, porta 8000) e do site Nuxt (porta 3000). nginx no
-host + certbot, este app sob systemd em `127.0.0.1:8010`, com usuário de
-sistema próprio. **Não há Docker nessa máquina.**
+Uma VPS Linux com nginx no host + certbot, este app sob systemd em
+`127.0.0.1:8010`, com usuário de sistema próprio. Sem Docker. Os documentos usam
+`ssh meu-servidor` e `emailing.example.com` como exemplo; os valores reais da
+implantação estão no `CLAUDE.local.md`. **Nunca escreva IP, host ssh ou domínio
+de uma implantação real em arquivo versionado** — o repositório é público.

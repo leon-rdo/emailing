@@ -25,10 +25,10 @@ SENHA = "uma-senha-bem-comprida-123"
 @pytest.fixture
 def logado(client, alias_de_teste):
     usuario = get_user_model().objects.create_superuser(
-        username="leonardo", email="me@leonardocosta.dev", password=SENHA
+        username="operador", email="me@empresa.example", password=SENHA
     )
     with override_settings(OTP_OBRIGATORIO=False):
-        client.post(reverse("mensagens:entrar"), {"username": "leonardo", "password": SENHA})
+        client.post(reverse("mensagens:entrar"), {"username": "operador", "password": SENHA})
     return usuario
 
 
@@ -412,12 +412,12 @@ def test_historico_mostra_link_responder_so_para_enviados(client, logado):
     from mensagens.models import RegistroEnvio
 
     RegistroEnvio.objects.create(
-        alias="financeiro", remetente="x <financeiro@leonardocosta.dev>",
+        alias="financeiro", remetente="x <financeiro@empresa.example>",
         para="a@x.com", assunto="Enviado", message_id="<e@x>",
         status=RegistroEnvio.Status.ENVIADO,
     )
     RegistroEnvio.objects.create(
-        alias="financeiro", remetente="x <financeiro@leonardocosta.dev>",
+        alias="financeiro", remetente="x <financeiro@empresa.example>",
         para="a@x.com", assunto="Falhou", message_id="<f@x>",
         status=RegistroEnvio.Status.FALHOU,
     )
@@ -435,15 +435,15 @@ def test_responder_dedup_e_cap_de_referencias(client, logado):
     from mensagens.models import RegistroEnvio
 
     original = RegistroEnvio.objects.create(
-        alias="financeiro", remetente="x <financeiro@leonardocosta.dev>",
+        alias="financeiro", remetente="x <financeiro@empresa.example>",
         para="cliente@example.com", assunto="Pedido",
-        message_id="<abc@leonardocosta.dev>",
-        referencias="<a@x> <abc@leonardocosta.dev>",  # já contém o próprio id
+        message_id="<abc@empresa.example>",
+        referencias="<a@x> <abc@empresa.example>",  # já contém o próprio id
         status=RegistroEnvio.Status.ENVIADO,
     )
     resposta = client.get(reverse("mensagens:inicio"), {"responder": original.pk})
     referencias = resposta.context["form"].initial["referencias"]
-    assert referencias == "<a@x> <abc@leonardocosta.dev>"  # sem duplicar
+    assert referencias == "<a@x> <abc@empresa.example>"  # sem duplicar
 
 
 def test_responder_pre_preenche_destinatario_original(client, logado):
@@ -451,10 +451,10 @@ def test_responder_pre_preenche_destinatario_original(client, logado):
 
     original = RegistroEnvio.objects.create(
         alias="financeiro",
-        remetente="Leonardo Costa <financeiro@leonardocosta.dev>",
+        remetente="Ana Souza <financeiro@empresa.example>",
         para="cliente@example.com",
         assunto="Pedido",
-        message_id="<abc@leonardocosta.dev>",
+        message_id="<abc@empresa.example>",
         status=RegistroEnvio.Status.ENVIADO,
     )
     resposta = client.get(reverse("mensagens:inicio"), {"responder": original.pk})
@@ -462,7 +462,7 @@ def test_responder_pre_preenche_destinatario_original(client, logado):
     form = resposta.context["form"]
     assert form.initial["para"] == "cliente@example.com"
     assert form.initial["assunto"] == "Re: Pedido"
-    assert form.initial["in_reply_to"] == "<abc@leonardocosta.dev>"
+    assert form.initial["in_reply_to"] == "<abc@empresa.example>"
 
 
 # ---------------------------------------------------------------------------

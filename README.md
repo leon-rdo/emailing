@@ -1,12 +1,15 @@
 # Emailing
 
-Aplicação web de usuário único para redigir e enviar e-mail por **alias** do
-domínio `leonardocosta.dev`. O Titan Mail cobra à parte pelo envio por alias,
-mas o SMTP dele aceita `From:` de qualquer endereço do mesmo domínio quando
-autenticado com uma caixa real — este app transforma isso numa ferramenta com
-editor, assinatura, pré-visualização, anexos e resposta a threads existentes.
+Aplicação web de usuário único para redigir e enviar e-mail por **alias** dos
+seus domínios. Vários provedores (Titan, Hostinger, GoDaddy…) cobram por caixa
+ou à parte pelo envio por alias, mas o SMTP deles aceita `From:` de qualquer
+endereço do mesmo domínio quando autenticado com uma caixa real — este app
+transforma isso numa ferramenta com editor, assinatura, pré-visualização,
+anexos, agendamento, resposta a threads existentes e um servidor MCP para o
+Claude Code enviar e ler e-mail.
 
-Roda em `https://emailing.leonardocosta.dev`.
+Feito para rodar numa VPS própria, atrás do nginx, num subdomínio como
+`https://emailing.example.com`.
 
 Uma conta serve vários aliases, e contas diferentes podem estar em provedores
 diferentes — Titan e Hostinger convivem, cada uma com os seus.
@@ -89,7 +92,7 @@ aliases no banco. É idempotente. Depois disso essas variáveis podem sair do
 ### Segundo fator
 
 ```bash
-uv run manage.py criar_totp leonardo
+uv run manage.py criar_totp <usuário>
 ```
 
 Mostra o QR no terminal. Com `OTP_OBRIGATORIO="1"`, uma sessão autenticada sem
@@ -97,8 +100,10 @@ segundo fator verificado é encerrada — não existe estado intermediário.
 
 ## Implantação
 
-VPS Contabo (`ssh leonardo_contabo`), ao lado do Pholium: nginx no host, TLS
-pelo certbot, processo sob systemd. Não há Docker nessa máquina.
+Uma VPS Linux (o servidor de referência é Ubuntu 24.04) com nginx no host, TLS
+pelo certbot e o processo sob systemd. Não precisa de Docker. Os exemplos usam
+`ssh meu-servidor` — um `Host` do seu `~/.ssh/config` — e `emailing.example.com`;
+troque pelos seus.
 
 - Código em `/var/www/emailing`, `.env` na raiz com modo `0600`.
 - `uv sync --frozen --no-dev && manage.py migrate && manage.py collectstatic`.
@@ -109,10 +114,11 @@ pelo certbot, processo sob systemd. Não há Docker nessa máquina.
   `client_max_body_size 25m` (senão o anexo grande morre com 413 antes de
   chegar ao Django). O estático é servido pelo whitenoise — não crie um
   `location /static/`.
-- `certbot --nginx -d emailing.leonardocosta.dev`. O DNS já resolve por
-  wildcard, não há registro a criar.
-- **Sempre `nginx -t` antes do reload**: um erro de sintaxe derruba
-  `api.leonardocosta.dev` e `leonardocosta.dev` junto.
+- Um registro DNS do subdomínio apontando para o servidor, e
+  `certbot --nginx -d emailing.example.com`. O modelo do vhost está em
+  `deploy/nginx-emailing.conf`.
+- **Sempre `nginx -t` antes do reload**: um erro de sintaxe derruba todos os
+  outros sites do mesmo nginx.
 
 Atualizações depois da primeira vez: sincronize o código e rode
 `bash /var/www/emailing/deploy/implantar.sh` como root — ele cuida de
@@ -125,7 +131,7 @@ Sem um usuário e um dispositivo TOTP não há como entrar (em produção
 `OTP_OBRIGATORIO="1"`):
 
 ```bash
-ssh leonardo_contabo
+ssh meu-servidor
 cd /var/www/emailing
 uv run --no-dev manage.py createsuperuser
 uv run --no-dev manage.py criar_totp <usuário>   # escaneie o QR
@@ -202,7 +208,7 @@ limites de anexo e de destinatários —, e tudo entra no mesmo `/historico/`.
 Em produção há o atalho `emailing`, instalado pelo `implantar.sh`:
 
 ```bash
-ssh leonardo_contabo 'emailing verificar_config --json'
+ssh meu-servidor 'emailing verificar_config --json'
 ```
 
 O repositório traz `.claude/skills/enviar-email/`, que ensina essa sequência ao
@@ -245,7 +251,7 @@ entre a prévia e o clique em Enviar e o envio seria recusado.
 Diagnóstico e testes manuais:
 
 ```bash
-uv run manage.py testar_smtp financeiro --para voce@leonardocosta.dev
+uv run manage.py testar_smtp financeiro --para voce@example.com
 uv run manage.py limpar_rascunhos            # apaga anexos de rascunhos abandonados
 uv run manage.py despachar_agendados --conferir   # o que a fila mandaria agora
 ```

@@ -1,9 +1,9 @@
 [project]
 name = "emailing"
 version = "0.1.0"
-description = "Envio de e-mail por alias do domínio leonardocosta.dev"
+description = "Envio de e-mail por alias: autentica numa caixa real e põe o alias no From:"
 readme = "README.md"
-# 3.12 é o Python do servidor Contabo; 3.14 é o que o uv instala aqui e lá.
+# 3.12 é o Python do Ubuntu 24.04 (o servidor de referência); 3.14 é o que o uv instala aqui e lá.
 # Nada no projeto exige 3.13+, então o venv do sistema também serve.
 requires-python = ">=3.12"
 dependencies = [

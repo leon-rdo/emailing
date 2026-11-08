@@ -6,7 +6,7 @@ from mensagens.montagem import Anexo, DadosRedacao, calcular_hash_previa, montar
 
 pytestmark = pytest.mark.django_db
 
-ASSINATURA = '<table style="width:500px"><tr><td style="color:red">Leonardo</td></tr></table>'
+ASSINATURA = '<table style="width:500px"><tr><td style="color:red">Ana</td></tr></table>'
 
 
 def test_from_e_envelope_sao_independentes(alias_de_teste):
@@ -15,10 +15,10 @@ def test_from_e_envelope_sao_independentes(alias_de_teste):
     mensagem = montar_email(dados, alias_de_teste)
 
     # from_email é o envelope (MAIL FROM): bare address.
-    assert mensagem.from_email == "financeiro@leonardocosta.dev"
+    assert mensagem.from_email == "financeiro@empresa.example"
     # O cabeçalho From: carrega o nome de exibição — os dois levers são
     # independentes no Django (extra_headers["From"] vence self.from_email).
-    assert mensagem.extra_headers["From"] == "Leonardo Costa <financeiro@leonardocosta.dev>"
+    assert mensagem.extra_headers["From"] == "Ana Souza <financeiro@empresa.example>"
 
 
 def test_corpo_vai_em_quoted_printable_e_so_ascii_na_rede(alias_de_teste):
@@ -119,16 +119,16 @@ def test_message_id_soh_quando_passado(alias_de_teste):
     com_id = montar_email(
         DadosRedacao(para=["c@x.com"], corpo_html="oi"),
         alias_de_teste,
-        message_id="<xyz@leonardocosta.dev>",
+        message_id="<xyz@empresa.example>",
     )
-    assert com_id.extra_headers["Message-ID"] == "<xyz@leonardocosta.dev>"
+    assert com_id.extra_headers["Message-ID"] == "<xyz@empresa.example>"
 
 
 def test_reply_to_do_alias_e_usado(alias_de_teste):
-    alias_de_teste.reply_to = "outro@leonardocosta.dev"
+    alias_de_teste.reply_to = "outro@empresa.example"
     alias_de_teste.save()
     mensagem = montar_email(DadosRedacao(para=["c@x.com"], corpo_html="oi"), alias_de_teste)
-    assert mensagem.reply_to == ["outro@leonardocosta.dev"]
+    assert mensagem.reply_to == ["outro@empresa.example"]
 
 
 def test_anexos_sao_anexados(alias_de_teste):

@@ -6,16 +6,18 @@ Runbook: implantar, diagnosticar, e as tarefas que aparecem de vez em quando.
 
 | | |
 |---|---|
-| Servidor | Contabo `203.0.113.10`, `ssh leonardo_contabo` (usuário root) |
+| Servidor | VPS Linux (referência: Ubuntu 24.04); os exemplos usam `ssh meu-servidor`, um `Host` do seu `~/.ssh/config` que entra como root |
 | Código | `/var/www/emailing` |
 | Estado | `/var/www/emailing/data` (banco, anexos pendentes) |
 | Serviço | `systemd`, unit `emailing`, gunicorn em `127.0.0.1:8010` |
 | Usuário | `emailing` (de sistema, sem shell) — **não** roda como root |
-| Proxy | nginx no host, vhost `emailing.leonardocosta.dev`, TLS pelo certbot |
+| Proxy | nginx no host, vhost do seu domínio (os exemplos usam `emailing.example.com`), TLS pelo certbot |
 | Toolchain | uv em `/usr/local/bin/uv`, Python gerenciado em `/opt/uv-python` |
 
-Na mesma máquina: Pholium (`api.leonardocosta.dev`, porta 8000) e o site Nuxt
-(`leonardocosta.dev`, porta 3000). **Não há Docker.**
+O app convive bem com outros serviços na mesma máquina: só ocupa a porta 8010
+no loopback, um vhost do nginx e três entradas em `/etc/cron.d`. Não precisa de
+Docker. Os detalhes de uma implantação específica (IP, host ssh, o que mais roda
+lá) cabem num `CLAUDE.local.md`, que fica fora do git.
 
 ## Implantar
 
@@ -25,9 +27,9 @@ rsync -az --delete \
   --exclude '.venv' --exclude 'data' --exclude 'staticfiles' \
   --exclude '.git' --exclude '__pycache__' --exclude '.env' \
   --exclude '.pytest_cache' \
-  ./ leonardo_contabo:/var/www/emailing/
+  ./ meu-servidor:/var/www/emailing/
 
-ssh leonardo_contabo 'sudo bash /var/www/emailing/deploy/implantar.sh'
+ssh meu-servidor 'sudo bash /var/www/emailing/deploy/implantar.sh'
 ```
 
 O `implantar.sh` faz dependências → migrações → estático → `verificar_config`
@@ -35,7 +37,7 @@ O `implantar.sh` faz dependências → migrações → estático → `verificar_
 ou se a configuração estiver quebrada (ele para antes de reiniciar).
 
 > **Nunca recarregue o nginx sem `nginx -t` antes.** Um erro de sintaxe derruba
-> `api.leonardocosta.dev` e `leonardocosta.dev` junto.
+> todos os outros sites servidos pelo mesmo nginx.
 
 ### Se precisar mexer no nginx
 
@@ -77,19 +79,19 @@ que existe, de propósito ([decisoes.md](decisoes.md#cli)).
 
 ```bash
 # o que existe (é assim que se descobre o slug, sem chutar)
-ssh leonardo_contabo 'emailing verificar_config --json'
+ssh meu-servidor 'emailing verificar_config --json'
 
 # o corpo vai por arquivo ou por cano — nunca por argumento
-ssh leonardo_contabo 'cat > /tmp/corpo.html' <<'HTML'
+ssh meu-servidor 'cat > /tmp/corpo.html' <<'HTML'
 <p>Bom dia,</p>
 HTML
 
 # conferir o que sairia, sem enviar
-ssh leonardo_contabo 'emailing enviar --alias financeiro --para c@x.com \
+ssh meu-servidor 'emailing enviar --alias financeiro --para c@x.com \
     --assunto "Proposta" --corpo-arquivo /tmp/corpo.html --conferir'
 
 # enviar
-ssh leonardo_contabo 'emailing enviar --alias financeiro --para c@x.com \
+ssh meu-servidor 'emailing enviar --alias financeiro --para c@x.com \
     --assunto "Proposta" --corpo-arquivo /tmp/corpo.html --json'
 ```
 
@@ -115,14 +117,14 @@ ssh-keygen -t ed25519 -f ~/.ssh/emailing_mcp -C "emailing-mcp" -N ""
 `/root/.ssh/authorized_keys` (o `emailing` é que troca para o usuário do serviço):
 
 ```bash
-ssh leonardo_contabo "echo 'command=\"/usr/local/bin/emailing mcp\",restrict $(cat ~/.ssh/emailing_mcp.pub)' >> /root/.ssh/authorized_keys"
+ssh meu-servidor "echo 'command=\"/usr/local/bin/emailing mcp\",restrict $(cat ~/.ssh/emailing_mcp.pub)' >> /root/.ssh/authorized_keys"
 ```
 
 **3. Na máquina local, um `Host` para ela** em `~/.ssh/config`:
 
 ```
 Host emailing-mcp
-    HostName 203.0.113.10
+    HostName 203.0.113.10        # o IP ou o nome do seu servidor
     User root
     IdentityFile ~/.ssh/emailing_mcp
     IdentitiesOnly yes
@@ -165,10 +167,10 @@ Recebimento* (o "Testar conexão" autentica no IMAP também):
 ssh -T emailing-mcp ls            # Ctrl-C para sair
 
 # com uma sessão do Claude Code aberta: um processo por sessão, ~100 MB
-ssh leonardo_contabo 'ps -o pid,rss,etime,args -u emailing | grep "manage.py mcp"'
+ssh meu-servidor 'ps -o pid,rss,etime,args -u emailing | grep "manage.py mcp"'
 
 # o que o MCP mudou (enviar, agendar, rascunho, cancelar, marcar, mover)
-ssh leonardo_contabo 'journalctl -t emailing-mcp --since today'
+ssh meu-servidor 'journalctl -t emailing-mcp --since today'
 ```
 
 Envios e agendamentos aparecem também em `/historico/` e `/agendados/`, como
@@ -195,17 +197,17 @@ minuto em minuto, por `/etc/cron.d/emailing-agendados`.
 
 ```bash
 # o que está vencido agora, sem despachar
-ssh leonardo_contabo 'emailing despachar_agendados --conferir'
+ssh meu-servidor 'emailing despachar_agendados --conferir'
 
 # despachar à mão (o flock do cron não protege contra isto — rode uma vez só)
-ssh leonardo_contabo 'emailing despachar_agendados -v 2'
+ssh meu-servidor 'emailing despachar_agendados -v 2'
 
 # agendar pela linha de comando
-ssh leonardo_contabo 'emailing enviar --alias financeiro --para c@x.com \
+ssh meu-servidor 'emailing enviar --alias financeiro --para c@x.com \
     --assunto "Lembrete" --corpo-arquivo /tmp/corpo.html --em "2026-09-10 09:00"'
 
 # log do despachante
-ssh leonardo_contabo 'tail -50 /var/log/emailing-agendados.log'
+ssh meu-servidor 'tail -50 /var/log/emailing-agendados.log'
 ```
 
 Os limites ficam no `.env` (`AGENDADOS_*`). Os dois que mais importam:
@@ -278,15 +280,15 @@ deploy apaga.
 
 ```bash
 # fazer uma agora (antes de qualquer coisa arriscada)
-ssh leonardo_contabo 'emailing backup'
+ssh meu-servidor 'emailing backup'
 
 # o que existe, e há quanto tempo
-ssh leonardo_contabo 'emailing backup --listar'
+ssh meu-servidor 'emailing backup --listar'
 
 # a pergunta que importa: este arquivo serve para restaurar?
-ssh leonardo_contabo 'emailing backup --conferir'
+ssh meu-servidor 'emailing backup --conferir'
 
-ssh leonardo_contabo 'tail -20 /var/log/emailing-backup.log'
+ssh meu-servidor 'tail -20 /var/log/emailing-backup.log'
 ```
 
 Não precisa parar o serviço: a cópia usa a API de backup online do SQLite, que
@@ -306,7 +308,7 @@ exatamente o tipo de operação que não deve caber num comando fácil de digita
 por engano. São quatro passos:
 
 ```bash
-ssh leonardo_contabo
+ssh meu-servidor
 emailing backup --conferir /var/backups/emailing/db-AAAAMMDDTHHMMSSZ.sqlite3
 systemctl stop emailing
 cp /var/backups/emailing/db-AAAAMMDDTHHMMSSZ.sqlite3 /var/www/emailing/data/db.sqlite3
@@ -334,7 +336,7 @@ as senhas SMTP em claro.
 Enquanto não existe, uma cópia manual para a sua máquina:
 
 ```bash
-scp leonardo_contabo:/var/backups/emailing/db-*.sqlite3 ~/backups-emailing/
+scp meu-servidor:/var/backups/emailing/db-*.sqlite3 ~/backups-emailing/
 ```
 
 ### O `SECRET_KEY` abre as senhas

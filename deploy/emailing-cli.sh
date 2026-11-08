@@ -7,13 +7,13 @@
 # ambiente a cada vez, e errar uma delas dá "permission denied" ou, pior, um
 # banco vazio que parece só não ter alias nenhum.
 #
-#     ssh leonardo_contabo 'emailing verificar_config --json'
-#     ssh leonardo_contabo 'emailing enviar --alias financeiro --para c@x.com \
+#     ssh meu-servidor 'emailing verificar_config --json'
+#     ssh meu-servidor 'emailing enviar --alias financeiro --para c@x.com \
 #         --assunto "Oi" --corpo-arquivo /tmp/corpo.html --conferir'
 #
 # O stdin passa por aqui, então o corpo também pode vir por cano:
 #
-#     cat corpo.html | ssh leonardo_contabo 'emailing enviar --alias financeiro …'
+#     cat corpo.html | ssh meu-servidor 'emailing enviar --alias financeiro …'
 #
 # Chama o Python do venv direto, sem `uv run`: o uv revalida o lockfile a cada
 # invocação e exigiria HOME e cache graváveis para nada.

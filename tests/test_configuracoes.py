@@ -18,17 +18,17 @@ SENHA = "uma-senha-bem-comprida-123"
 @pytest.fixture
 def logado(client, alias_de_teste):
     get_user_model().objects.create_superuser(
-        username="leonardo", email="me@leonardocosta.dev", password=SENHA
+        username="operador", email="me@empresa.example", password=SENHA
     )
     with override_settings(OTP_OBRIGATORIO=False):
-        client.post(reverse("mensagens:entrar"), {"username": "leonardo", "password": SENHA})
+        client.post(reverse("mensagens:entrar"), {"username": "operador", "password": SENHA})
 
 
 def _conta_pelo_formulario(**extra):
     dados = {
-        "nome": "Hostinger — altaris.love", "host": "smtp.hostinger.com", "porta": "465",
-        "usuario": "suporte@altaris.love", "senha": "segredo", "cifra": "ssl",
-        "timeout": "20", "dominios_permitidos": "altaris.love", "envelope_from": "",
+        "nome": "Hostinger — outra.example", "host": "smtp.hostinger.com", "porta": "465",
+        "usuario": "suporte@outra.example", "senha": "segredo", "cifra": "ssl",
+        "timeout": "20", "dominios_permitidos": "outra.example", "envelope_from": "",
         "ativa": "on",
     }
     dados.update(extra)
@@ -54,7 +54,7 @@ def test_configuracoes_exigem_login(client):
 def test_criar_conta_cifra_a_senha_e_traduz_a_cifra(client, logado):
     resposta = client.post(reverse("mensagens:config_conta_nova"), _conta_pelo_formulario())
     assert resposta.status_code == 302
-    conta = ContaEmail.objects.get(usuario="suporte@altaris.love")
+    conta = ContaEmail.objects.get(usuario="suporte@outra.example")
     assert conta.usar_ssl and not conta.usar_tls
     assert conta.senha == "segredo"
     assert "segredo" not in conta.senha_cifrada
@@ -74,7 +74,7 @@ def test_editar_conta_com_senha_em_branco_mantem_a_atual(client, logado, conta_d
 def test_conta_nova_exige_senha(client, logado):
     resposta = client.post(reverse("mensagens:config_conta_nova"), _conta_pelo_formulario(senha=""))
     assert resposta.status_code == 200
-    assert not ContaEmail.objects.filter(usuario="suporte@altaris.love").exists()
+    assert not ContaEmail.objects.filter(usuario="suporte@outra.example").exists()
 
 
 def test_senha_nunca_volta_para_a_tela(client, logado, conta_de_teste):
@@ -84,9 +84,9 @@ def test_senha_nunca_volta_para_a_tela(client, logado, conta_de_teste):
 
 
 def test_criar_alias_com_assinatura_html_cru(client, logado, conta_de_teste):
-    assinatura = '<table style="color:#222"><tr><td>Leonardo</td></tr></table>'
+    assinatura = '<table style="color:#222"><tr><td>Ana</td></tr></table>'
     resposta = client.post(reverse("mensagens:config_alias_novo"), {
-        "conta": conta_de_teste.pk, "slug": "suporte", "endereco": "suporte@leonardocosta.dev",
+        "conta": conta_de_teste.pk, "slug": "suporte", "endereco": "suporte@empresa.example",
         "nome_exibicao": "Suporte", "reply_to": "", "assinatura_html": assinatura,
         "ativo": "on", "ordem": "5",
     })
@@ -116,12 +116,12 @@ def test_slug_do_alias_nao_muda_depois_de_criado(client, logado, alias_de_teste)
 def test_previa_da_assinatura_usa_a_montagem_do_envio(client, logado):
     resposta = client.post(
         reverse("mensagens:config_assinatura_previa"),
-        {"assinatura_html": "<p>Leonardo <b>Costa</b></p><script>alert(1)</script>"},
+        {"assinatura_html": "<p>Ana <b>Costa</b></p><script>alert(1)</script>"},
     )
     corpo = resposta.json()
     assert corpo["ok"]
     assert "<!DOCTYPE html>" in corpo["html"]            # a moldura da prévia
-    assert "Leonardo <b>Costa</b>" in corpo["html"]      # a assinatura, como foi escrita
+    assert "Ana <b>Costa</b>" in corpo["html"]      # a assinatura, como foi escrita
 
 
 def test_testar_conta_explica_senha_recusada(client, logado):
@@ -155,12 +155,12 @@ def test_testar_conta_sem_senha_usa_a_guardada(client, logado, conta_de_teste):
 @pytest.fixture
 def duas_caixas(alias_de_teste, criar_alias):
     outra = ContaEmail(
-        nome="Hostinger — altaris.love", host="h", usuario="s@altaris.love",
-        dominios_permitidos="altaris.love",
+        nome="Hostinger — outra.example", host="h", usuario="s@outra.example",
+        dominios_permitidos="outra.example",
     )
     outra.senha = "x"
     outra.save()
-    suporte = criar_alias("suporte", "suporte@altaris.love", conta=outra)
+    suporte = criar_alias("suporte", "suporte@outra.example", conta=outra)
     return alias_de_teste.conta, outra, alias_de_teste, suporte
 
 
@@ -173,14 +173,14 @@ def _registro(alias, assunto):
 
 def test_historico_filtra_pela_caixa(client, logado, duas_caixas):
     conta_a, conta_b, a, b = duas_caixas
-    _registro(a, "da-leonardo")
-    _registro(b, "da-altaris")
+    _registro(a, "da-caixa-a")
+    _registro(b, "da-caixa-b")
 
     tudo = client.get(reverse("mensagens:historico")).content.decode()
-    assert "da-leonardo" in tudo and "da-altaris" in tudo
+    assert "da-caixa-a" in tudo and "da-caixa-b" in tudo
 
     so_b = client.get(reverse("mensagens:historico"), {"caixa": conta_b.pk}).content.decode()
-    assert "da-altaris" in so_b and "da-leonardo" not in so_b
+    assert "da-caixa-b" in so_b and "da-caixa-a" not in so_b
 
 
 def test_menu_lista_as_caixas_so_quando_ha_mais_de_uma(client, logado, alias_de_teste):
@@ -189,13 +189,13 @@ def test_menu_lista_as_caixas_so_quando_ha_mais_de_uma(client, logado, alias_de_
 
 def test_menu_lista_as_caixas(client, logado, duas_caixas):
     html = client.get(reverse("mensagens:historico")).content.decode()
-    assert "Todas as caixas" in html and "Hostinger — altaris.love" in html
+    assert "Todas as caixas" in html and "Hostinger — outra.example" in html
 
 
 def test_seletor_de_agrupa_por_caixa(duas_caixas):
     _, _, a, b = duas_caixas
     grupos = opcoes_de_alias([a, b])
-    assert [nome for nome, _ in grupos] == ["Conta de teste", "Hostinger — altaris.love"]
+    assert [nome for nome, _ in grupos] == ["Conta de teste", "Hostinger — outra.example"]
     assert opcoes_de_alias([a]) == [(a.slug, str(a))]  # uma caixa só: lista simples
 
 

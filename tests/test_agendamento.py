@@ -239,7 +239,7 @@ def test_cada_tentativa_deixa_o_seu_registro(alias_de_teste, settings, monkeypat
 
 def test_esgotadas_as_tentativas_desiste_e_avisa(alias_de_teste, settings, monkeypatch):
     settings.AGENDADOS_MAX_TENTATIVAS = 1
-    settings.AGENDADOS_AVISAR_PARA = "eu@leonardocosta.dev"
+    settings.AGENDADOS_AVISAR_PARA = "eu@empresa.example"
     _quebrar_smtp(monkeypatch, deixar_aviso_passar=True)
     agendado = agendar(alias_de_teste, _dados(assunto="Proposta"), timezone.now())
 
@@ -249,7 +249,7 @@ def test_esgotadas_as_tentativas_desiste_e_avisa(alias_de_teste, settings, monke
     assert agendado.status == EnvioAgendado.Status.FALHOU
     assert len(mail.outbox) == 1
     aviso = mail.outbox[0]
-    assert aviso.to == ["eu@leonardocosta.dev"]
+    assert aviso.to == ["eu@empresa.example"]
     assert f"#{agendado.pk}" in aviso.subject
     assert "Proposta" in aviso.alternatives[0][0]
 
@@ -268,7 +268,7 @@ def test_sem_endereco_de_aviso_nao_tenta_avisar(alias_de_teste, settings, monkey
 def test_aviso_que_nao_sai_nao_derruba_o_despacho(alias_de_teste, settings, monkeypatch):
     """Um aviso que falha não pode virar uma segunda falha em cascata."""
     settings.AGENDADOS_MAX_TENTATIVAS = 1
-    settings.AGENDADOS_AVISAR_PARA = "eu@leonardocosta.dev"
+    settings.AGENDADOS_AVISAR_PARA = "eu@empresa.example"
     settings.AGENDADOS_AVISAR_ALIAS = "nao-existe"
     _quebrar_smtp(monkeypatch, deixar_aviso_passar=True)
     agendado = agendar(alias_de_teste, _dados(), timezone.now())

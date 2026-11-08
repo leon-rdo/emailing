@@ -11,7 +11,7 @@ pytestmark = pytest.mark.django_db
 
 
 def test_envio_bem_sucedido(alias_de_teste, settings):
-    settings.MESSAGE_ID_DOMAIN = "leonardocosta.dev"
+    settings.MESSAGE_ID_DOMAIN = "empresa.example"
     alias = alias_de_teste
     dados = DadosRedacao(para=["cliente@example.com"], assunto="Oi", corpo_html="<p>Olá</p>")
 
@@ -22,7 +22,7 @@ def test_envio_bem_sucedido(alias_de_teste, settings):
     assert len(mail.outbox) == 1
 
     cru = mail.outbox[0].message().as_bytes()
-    assert b"From: Leonardo Costa <financeiro@leonardocosta.dev>" in cru
+    assert b"From: Ana Souza <financeiro@empresa.example>" in cru
     assert b"To: cliente@example.com" in cru
     assert b"Content-Type: multipart/alternative" in cru
     assert f"<{registro.message_id.strip('<>')}>".encode() in cru or (
@@ -34,7 +34,7 @@ def test_message_id_termina_no_dominio_do_alias(alias_de_teste, settings):
     settings.MESSAGE_ID_DOMAIN = ""  # vazio → cai no domínio do próprio alias
     alias = alias_de_teste
     registro = enviar_email(alias, DadosRedacao(para=["c@x.com"], corpo_html="oi"))
-    assert registro.message_id.endswith("@leonardocosta.dev>")
+    assert registro.message_id.endswith("@empresa.example>")
 
 
 def test_grava_enviando_antes_de_mandar(alias_de_teste, monkeypatch):

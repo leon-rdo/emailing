@@ -29,13 +29,13 @@ class ContaEmail(models.Model):
 
     nome = models.CharField(
         "nome", max_length=100, unique=True,
-        help_text='Só para você reconhecer, ex.: "Titan — leonardocosta.dev".',
+        help_text='Só para você reconhecer, ex.: "Titan — example.com".',
     )
     host = models.CharField("servidor SMTP", max_length=255)
     porta = models.PositiveIntegerField("porta", default=587)
     usuario = models.CharField(
         "conta que autentica", max_length=320,
-        help_text="A caixa real, não o alias. Ex.: me@leonardocosta.dev",
+        help_text="A caixa real, não o alias. Ex.: caixa@example.com",
     )
     senha_cifrada = models.TextField("senha", blank=True)
     usar_tls = models.BooleanField("STARTTLS (porta 587)", default=True)

@@ -72,36 +72,36 @@ def test_alias_inativo_nao_e_encontrado(criar_alias):
 
 
 def test_remetente_usa_formataddr(alias_de_teste):
-    assert alias_de_teste.remetente == "Leonardo Costa <financeiro@leonardocosta.dev>"
+    assert alias_de_teste.remetente == "Ana Souza <financeiro@empresa.example>"
 
 
 def test_remetente_sem_nome_e_so_o_endereco(criar_alias):
-    assert criar_alias("contato").remetente == "contato@leonardocosta.dev"
+    assert criar_alias("contato").remetente == "contato@empresa.example"
 
 
 def test_envelope_e_o_proprio_alias(alias_de_teste):
-    assert alias_de_teste.envelope == "financeiro@leonardocosta.dev"
+    assert alias_de_teste.envelope == "financeiro@empresa.example"
 
 
 def test_envelope_fixo_da_conta_vence(conta_de_teste, criar_alias):
-    conta_de_teste.envelope_from = "bounces@leonardocosta.dev"
+    conta_de_teste.envelope_from = "bounces@empresa.example"
     conta_de_teste.save()
     alias = criar_alias("x")
-    assert alias.envelope == "bounces@leonardocosta.dev"
+    assert alias.envelope == "bounces@empresa.example"
 
 
 def test_smtp_monta_os_kwargs_da_conexao(alias_de_teste):
     smtp = alias_de_teste.smtp
     assert smtp["host"] == "smtp.exemplo.test"
     assert smtp["port"] == 587
-    assert smtp["username"] == "me@leonardocosta.dev"
+    assert smtp["username"] == "me@empresa.example"
     assert smtp["password"] == "segredo-de-teste"
     assert smtp["use_tls"] is True
     assert smtp["timeout"] == 20
 
 
 def test_dominio_do_message_id_e_o_do_alias(alias_de_teste):
-    assert alias_de_teste.dominio_message_id == "leonardocosta.dev"
+    assert alias_de_teste.dominio_message_id == "empresa.example"
 
 
 # --- validação --------------------------------------------------------
@@ -116,13 +116,13 @@ def test_alias_fora_do_dominio_da_conta_e_recusado(conta_de_teste):
 def test_dominios_derivam_da_conta_quando_nao_declarados(conta_de_teste):
     conta_de_teste.dominios_permitidos = ""
     conta_de_teste.save()
-    assert conta_de_teste.dominios == ["leonardocosta.dev"]
+    assert conta_de_teste.dominios == ["empresa.example"]
 
 
 def test_conta_com_varios_dominios(conta_de_teste, criar_alias):
-    conta_de_teste.dominios_permitidos = "leonardocosta.dev, altaris.love"
+    conta_de_teste.dominios_permitidos = "empresa.example, outra.example"
     conta_de_teste.save()
-    alias = Alias(conta=conta_de_teste, slug="outro", endereco="no-reply@altaris.love")
+    alias = Alias(conta=conta_de_teste, slug="outro", endereco="no-reply@outra.example")
     alias.full_clean()  # não levanta
 
 
