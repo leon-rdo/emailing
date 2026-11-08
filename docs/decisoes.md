@@ -734,6 +734,21 @@ prometer algo que não expande.
 
 ## Configuração
 
+### Os testes não leem o `.env` {#testes-sem-env}
+
+**Alternativa:** deixar os testes com o `config.settings` de sempre.
+**Por que não:** foi assim até novembro/2026, e os testes passavam só na máquina
+de quem tinha `DEBUG=1` e `OTP_OBRIGATORIO=0` no `.env`. Num checkout limpo, 82
+falhavam: redirecionamento HTTPS e manifest de estático do modo produção, e a
+sessão da fixture `logado` derrubada pelo OTP obrigatório. Ninguém via, porque
+ninguém rodava fora da própria máquina — apareceu ao conferir cada commit numa
+worktree antes de um push.
+
+`config/settings_teste.py` fixa os dois valores **por atribuição** (o shell não
+os muda) e liga `EMAILING_SEM_DOTENV`, que faz o `settings.py` pular o
+`load_dotenv`. O resultado depende só do repositório. O que precisa do modo
+produção ou do OTP liga com `override_settings`, como `test_auth.py`.
+
 ### Contas e aliases no banco, não no `.env`
 
 Foram no ambiente até serem migrados para o admin. O `.env` guarda só

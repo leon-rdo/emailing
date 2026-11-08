@@ -44,7 +44,7 @@ select = ["E", "F", "I", "UP", "B", "DJ", "C4", "T20"]
 known-first-party = ["config", "mensagens"]
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "config.settings"
+DJANGO_SETTINGS_MODULE = "config.settings_teste"
 python_files = ["test_*.py"]
 testpaths = ["tests"]
 addopts = "-ra"

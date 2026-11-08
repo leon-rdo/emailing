@@ -45,6 +45,10 @@ uv run ruff check .
 uv run pytest
 ```
 
+Os testes usam `config/settings_teste.py`, que **não lê o `.env`**: rodam sobre
+os padrões do código, com `DEBUG` e `OTP_OBRIGATORIO` fixados. Passam num
+checkout limpo, sem configurar nada.
+
 ## Configuração
 
 **Contas e aliases ficam no admin**, em `/admin/`. O `.env` guarda só o que é

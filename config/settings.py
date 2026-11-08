@@ -15,7 +15,10 @@ from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-load_dotenv(BASE_DIR / ".env")
+# Os testes (`config/settings_teste.py`) não leem o `.env`: rodam sobre os
+# padrões do código, para o resultado não depender da máquina de quem roda.
+if not os.environ.get("EMAILING_SEM_DOTENV"):
+    load_dotenv(BASE_DIR / ".env")
 
 
 # ---------------------------------------------------------------------------

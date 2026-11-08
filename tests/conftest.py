@@ -2,7 +2,7 @@ import os
 
 import pytest
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings_teste")
 
 
 @pytest.fixture
