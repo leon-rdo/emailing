@@ -15,9 +15,10 @@ Três coisas que este comando não tem, todas de propósito:
   é um processo e uma entrada, sem intervalo: a trava não protegeria de nada.
   Quem quer conferir antes usa `--conferir`, que não envia.
 - **validação própria.** Endereços, limite de destinatários, escolha de alias e
-  formato de data saem todos do `FormularioRedacao`, o mesmo da tela. Duas
-  validações acabam divergindo, e o sintoma seria "funciona no navegador e não
-  no terminal".
+  formato de data saem todos do `FormularioRedacao`, o mesmo da tela, por
+  `mensagens/redacao.py` — que o servidor MCP também usa. Duas validações
+  acabam divergindo, e o sintoma seria "funciona no navegador e não no
+  terminal".
 """
 
 import json
@@ -25,17 +26,20 @@ import sys
 from pathlib import Path
 
 from django.conf import settings
-from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone
 
 from mensagens.agendamento import agendar
-from mensagens.aliases import alias_por_slug, carregar_aliases
 from mensagens.anexos import ErroAnexo, criar_token, guardar_caminhos, inspecionar_caminhos
 from mensagens.envio import enviar_email
-from mensagens.forms import FormularioRedacao, analisar_enviar_em, dados_do_formulario
 from mensagens.models import RegistroEnvio
-from mensagens.montagem import montar_email
+from mensagens.redacao import (
+    ErroRedacao,
+    analisar_quando,
+    descrever_conferencia,
+    preparar,
+    resolver_alias,
+)
 
 
 class Command(BaseCommand):
@@ -78,32 +82,26 @@ class Command(BaseCommand):
         corpo = self._corpo(options["corpo_arquivo"])
         quando = self._quando(options["em"]) if options["em"] else None
 
-        form = FormularioRedacao(
-            data={
-                "alias": alias.slug,
-                "para": options["para"],
-                "cc": options["cc"],
-                "cco": options["cco"],
-                "assunto": options["assunto"],
-                "corpo": corpo,
-                "in_reply_to": options["in_reply_to"],
-                "referencias": options["referencias"],
-                "citacao_html": "",
-            },
-            aliases=carregar_aliases(),
-        )
-        if conferir:
-            # As duas tolerâncias da prévia da tela se separam aqui. "Sem
-            # destinatário" continua valendo — conferir é do conteúdo, e o
-            # destinatário costuma ser a última coisa que se decide. "Endereço
-            # inválido" não: na tela ele é descartado porque vem outra tecla
-            # atrás; aqui não vem nada atrás, e um endereço torto tem que doer
-            # agora, não no envio.
-            form.fields["para"].minimo_um = False
-        if not form.is_valid():
-            raise CommandError(self._erros(form))
-
-        dados = dados_do_formulario(form)
+        # A validação é a do formulário da tela, via `redacao.preparar` — o
+        # mesmo caminho do servidor MCP. No modo "conferir" o destinatário deixa
+        # de ser obrigatório, mas endereço inválido continua sendo erro (o
+        # porquê está na docstring de `preparar`).
+        try:
+            dados = preparar(
+                alias,
+                {
+                    "para": options["para"],
+                    "cc": options["cc"],
+                    "cco": options["cco"],
+                    "assunto": options["assunto"],
+                    "corpo": corpo,
+                    "in_reply_to": options["in_reply_to"],
+                    "referencias": options["referencias"],
+                },
+                modo="conferir" if conferir else "enviar",
+            )
+        except ErroRedacao as exc:
+            raise CommandError(exc.texto(prefixo="--")) from exc
 
         if conferir:
             self._mostrar_conferencia(alias, dados, options["anexo"], quando, como_json)
@@ -122,17 +120,10 @@ class Command(BaseCommand):
     # --- entradas -------------------------------------------------------
 
     def _alias(self, slug: str):
-        disponiveis = carregar_aliases()
-        if not disponiveis:
-            raise CommandError(
-                "Nenhum alias ativo cadastrado. Cadastre no admin ou rode "
-                "`manage.py verificar_config` para ver o que está faltando."
-            )
         try:
-            return alias_por_slug(slug)
-        except KeyError as exc:
-            nomes = ", ".join(a.slug for a in disponiveis)
-            raise CommandError(f"Alias desconhecido: {slug!r}. Disponíveis: {nomes}.") from exc
+            return resolver_alias(slug)
+        except ErroRedacao as exc:
+            raise CommandError(exc.texto()) from exc
 
     def _corpo(self, caminho: str | None) -> str:
         if caminho == "-":
@@ -152,16 +143,9 @@ class Command(BaseCommand):
 
     def _quando(self, bruto: str):
         try:
-            quando = analisar_enviar_em(bruto)
-        except ValidationError as exc:
-            raise CommandError(
-                f"--em: {' '.join(exc.messages)} Formatos aceitos: "
-                '"2026-09-10 09:00", "10/09/2026 09:00", "2026-09-10T09:00".'
-            ) from exc
-        if quando <= timezone.now():
-            local = timezone.localtime(quando).strftime("%d/%m/%Y %H:%M")
-            raise CommandError(f"--em: {local} já passou (fuso {settings.TIME_ZONE}).")
-        return quando
+            return analisar_quando(bruto)
+        except ErroRedacao as exc:
+            raise CommandError(f"--em: {exc.texto()}") from exc
 
     def _guardar_anexos(self, caminhos: list[str]) -> str:
         if not caminhos:
@@ -173,53 +157,23 @@ class Command(BaseCommand):
             raise CommandError(str(exc)) from exc
         return token
 
-    def _erros(self, form) -> str:
-        partes = list(form.non_field_errors())
-        for campo, lista in form.errors.items():
-            if campo == "__all__":
-                continue
-            partes += [f"--{campo.replace('_', '-')}: {erro}" for erro in lista]
-        return "\n".join(partes)
-
     # --- saídas ---------------------------------------------------------
 
     def _mostrar_conferencia(self, alias, dados, caminhos_anexos, quando, como_json):
-        """Como a prévia da tela, e pelo mesmo caminho de código: `montar_email`
-        é função pura, então isto é literalmente o que sairia.
-
-        Não lê os bytes dos anexos, só os descreve — anexo nunca entra no corpo
-        HTML, vira parte MIME separada (mesma razão de `views._previa_de`).
+        """Como a prévia da tela, e pelo mesmo caminho de código — ver
+        `redacao.descrever_conferencia`. Não lê os bytes dos anexos, só os
+        descreve (mesma razão de `views._previa_de`).
         """
         try:
             anexos = inspecionar_caminhos(caminhos_anexos)
         except ErroAnexo as exc:
             raise CommandError(str(exc)) from exc
 
-        mensagem = montar_email(dados, alias)
-        html = mensagem.alternatives[0][0]
-
+        conferencia = descrever_conferencia(alias, dados, anexos, quando)
         if como_json:
-            self.stdout.write(json.dumps({
-                "ok": True,
-                "acao": "conferir",
-                "alias": alias.slug,
-                "remetente": alias.remetente,
-                "envelope": alias.envelope,
-                "reply_to": alias.reply_to,
-                "para": dados.para,
-                "cc": dados.cc,
-                "cco": dados.cco,
-                "assunto": dados.assunto,
-                "in_reply_to": dados.in_reply_to,
-                "referencias": dados.referencias,
-                "agendar_para": quando.isoformat() if quando else None,
-                "anexos": [
-                    {"nome": a.nome, "tamanho": a.tamanho, "tipo": a.tipo} for a in anexos
-                ],
-                "html": html,
-                "texto": mensagem.body,
-            }, ensure_ascii=False))
+            self.stdout.write(json.dumps(conferencia, ensure_ascii=False))
             return
+        html = conferencia["html"]
 
         escrever = self.stdout.write
         escrever(self.style.MIGRATE_HEADING("envelope"))
@@ -245,7 +199,7 @@ class Command(BaseCommand):
         escrever(html)
         escrever("")
         escrever(self.style.MIGRATE_HEADING("texto final"))
-        escrever(mensagem.body)
+        escrever(conferencia["texto"])
         escrever("")
         escrever(self.style.WARNING("Nada foi enviado (--conferir)."))
 
