@@ -204,6 +204,22 @@ ssh leonardo_contabo 'emailing verificar_config --json'
 O repositório traz `.claude/skills/enviar-email/`, que ensina essa sequência ao
 Claude Code — foi para isso que o comando ganhou `--conferir` e `--json`.
 
+### Pelo Claude Code (MCP)
+
+`manage.py mcp` é um servidor MCP por stdio que o Claude Code abre por ssh, com
+uma chave que só executa esse comando. Ele envia, agenda, guarda rascunho e
+**lê a caixa de entrada** por IMAP: busca, lê (sem marcar como lida), responde
+com o encadeamento certo (`responder_a`), marca e move.
+
+```bash
+claude mcp add --scope user emailing -- ssh -T emailing-mcp
+```
+
+A configuração completa (chave restrita, `~/.ssh/config`, allowlist só das
+tools de leitura, servidor IMAP de cada caixa) está em
+[docs/operacao.md](docs/operacao.md#mcp-o-claude-code-enviando-e-lendo-e-mail).
+As tools de envio pedem aprovação a cada chamada, de propósito.
+
 ### Marcadores
 
 Escreva `{{ data }}` no corpo e ele vira a data no momento do envio. A lista

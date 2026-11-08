@@ -119,16 +119,22 @@ SMTP vira `FALHOU` com o erro guardado, visível no histórico.
 diferentes, fixar um domínio na inicialização estaria errado para todas as
 outras.
 
-## Duas outras portas para o mesmo envio
+## Três outras portas para o mesmo envio
 
-`enviar_email()` tem três chamadores, e o desenho é que os três compartilhem
+`enviar_email()` tem quatro chamadores, e o desenho é que os quatro compartilhem
 tudo o que importa — sanitização, assinatura, montagem e `RegistroEnvio`:
 
 ```
 tela (views.redigir) ─────────────┐
-manage.py enviar ─────────────────┼──► enviar_email() ──► RegistroEnvio ──► SMTP
+manage.py enviar ──┐              │
+                   ├─ redacao.py ─┼──► enviar_email() ──► RegistroEnvio ──► SMTP
+manage.py mcp ─────┘              │
 despachar_agendados (cron) ───────┘
 ```
+
+`redacao.py` é o que impede as duas portas sem tela de terem validação própria:
+`preparar()` monta o `FormularioRedacao` (ou o `FormularioRascunho`) com o que
+veio, e `descrever_conferencia()` é a prévia sem tela.
 
 ### `manage.py enviar` — o operador e os agentes
 
@@ -136,13 +142,35 @@ A porta de quem não está na tela: o dono por ssh, ou um agente com acesso ao
 servidor. Autentica pela chave ssh, e não por token HTTP — o porquê está em
 [decisoes.md](decisoes.md#cli).
 
-Não tem validação própria: monta um `FormularioRedacao` com o que veio nos
-argumentos, então endereço, limite de destinatários, alias e formato de data são
+Não tem validação própria: passa por `redacao.preparar()`, que monta um
+`FormularioRedacao` com o que veio nos argumentos, então endereço, limite de destinatários, alias e formato de data são
 julgados pelo mesmo código da tela. `--conferir` é a prévia sem tela, e funciona
 pelo mesmo motivo que a prévia funciona: `montar_email()` é pura.
 
 O que ele **não** tem é a trava de `hash_previa` — no terminal não existe o
 intervalo humano que ela protege.
+
+### `manage.py mcp` — o Claude Code
+
+```
+Claude Code ──stdio──► ssh -T emailing-mcp ══ chave restrita ══► sshd (root)
+                         command="/usr/local/bin/emailing mcp",restrict
+                              └─► sudo -u emailing … manage.py mcp
+                                    ├─ redacao / envio / agendamento  (o mesmo da CLI)
+                                    └─ caixa.py ── IMAP, sob demanda
+```
+
+Um processo por sessão do Claude Code, falando JSON-RPC pelo stdin/stdout do
+ssh. As tools (`mcp_servidor.py`) são finas: validam por `redacao`, enviam por
+`enviar_email()`, agendam e guardam rascunho por `agendamento`, e leem a caixa
+por `caixa.py`. Erro de domínio vira `ToolError` com a mensagem em português.
+
+| Leitura (podem ir para a allowlist) | Escrita (aprovação a cada chamada) |
+|---|---|
+| `listar_aliases`, `listar_pastas`, `buscar_emails`, `ler_email`, `conferir_email`, `listar_agendados`, `historico` | `enviar_email`, `agendar_email`, `salvar_rascunho`, `cancelar_agendado`, `marcar_email`, `mover_email` |
+
+O que o MCP tem e a CLI não: o **teto de envios por sessão** e a leitura da
+caixa. O porquê de cada escolha está em [decisoes.md](decisoes.md#mcp).
 
 ### `despachar_agendados` — o cron
 
@@ -229,10 +257,32 @@ Três caminhos chegam ao mesmo lugar:
    sanitizador.
 2. **`Message-ID` digitado à mão** — quando não há o arquivo.
 3. **"Responder" no histórico** — usa o `message_id` que o próprio app gravou.
+4. **`responder_a` no MCP** — o servidor baixa o original por IMAP e o passa,
+   em memória, pelo mesmo `analisar_eml()` do caminho 1.
 
-`referencias_para_resposta()` é compartilhada pelos caminhos 1 e 3: References
+`referencias_para_resposta()` é compartilhada pelos caminhos 1, 3 e 4: References
 do original + `Message-ID` do original por último, sem duplicar, limitado a 20
 (mantendo o primeiro da thread).
+
+## Recebimento (`caixa.py`)
+
+Só para o MCP; a tela não tem caixa de entrada. Cada operação é uma conexão
+`IMAP4_SSL` com o `timeout` da conta: login, operação, logout. Nada é guardado.
+
+| Função | IMAP | Muda a caixa? |
+|---|---|---|
+| `listar_pastas` | `LIST` (nomes em UTF-7 modificado, decodificados) | não |
+| `buscar` | `EXAMINE` + `UID SORT (REVERSE DATE)` — ou, sem SORT, `UID SEARCH` + `Date` da janela, ordenado aqui — + `UID FETCH (… BODY.PEEK[HEADER.FIELDS …])` | não |
+| `ler` | `EXAMINE` + `UID FETCH (BODY.PEEK[])`, com teto `IMAP_MAX_BYTES` | não |
+| `marcar` | `SELECT` + `UID STORE ±FLAGS (\Seen)`/`(\Flagged)` | sim |
+| `mover` | `SELECT` + `UID MOVE`, ou `UID COPY` + `\Deleted` + `UID EXPUNGE` | sim |
+
+A mensagem é identificada por `conta:uidvalidity:uid:pasta`; toda operação
+confere o UIDVALIDITY antes de agir. `interpretar()` devolve o corpo em texto
+(`html_para_texto`, com os links encurtados por `encurtar_links`) ou em HTML
+sanitizado (`limpar_html`, links intactos), truncado em `MCP_LIMITE_CORPO`, e os
+anexos só como metadados. A ordem da busca é pela data do e-mail — ver
+[decisoes.md](decisoes.md#mcp-ordem).
 
 ## Segurança
 
@@ -246,3 +296,5 @@ do original + `Message-ID` do original por último, sem duplicar, limitado a 20
 | CSP com nonce | script inline só com nonce; o iframe da prévia herda o CSP |
 | `sandbox=""` no iframe | a prévia não executa nada |
 | `cripto.py` | senha SMTP cifrada com chave derivada do `SECRET_KEY` |
+| chave ssh restrita | o MCP só abre com `command="emailing mcp",restrict`; sem shell, PTY ou forwarding |
+| aprovação no Claude Code | tools de escrita do MCP nunca na allowlist; teto `MCP_MAX_ENVIOS_POR_SESSAO` |

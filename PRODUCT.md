@@ -10,8 +10,9 @@ web
 Uma pessoa só: o operador (Leonardo), dono de vários domínios, que manda e-mail
 profissional por **alias** sem pagar uma caixa por endereço. Usa em desktop de tela
 larga, redigindo mensagens reais para clientes e contatos, muitas vezes respondendo a
-um e-mail que recebeu (importa um `.eml`). Agentes (Claude Code) usam a linha de
-comando por ssh, não a tela.
+um e-mail que recebeu (importa um `.eml`). Agentes (Claude Code) usam o servidor MCP
+(ou a linha de comando) por ssh, não a tela — e é pelo MCP que leem e respondem a
+caixa de entrada.
 
 ## Product Purpose
 Redigir, conferir e enviar (ou agendar) e-mail com o endereço de um alias no `From:`,
@@ -20,7 +21,8 @@ o que o destinatário vai receber, e nada sai sem ter sido conferido.
 
 ## Positioning
 Não é um cliente de e-mail nem uma plataforma de campanhas: é uma mesa de redação de
-usuário único, sem caixa de entrada, onde a prévia é o mesmo código que monta o envio.
+usuário único, onde a prévia é o mesmo código que monta o envio. A **tela** não tem
+caixa de entrada; ler e responder o que chegou é coisa do agente, pelo MCP.
 
 ## Operating Context
 App Django renderizado no servidor (templates), sem npm, sem bundler, sem framework de
@@ -37,7 +39,7 @@ A prévia roda dentro de um iframe `srcdoc` sandbox que herda o CSP da página.
 - A moldura da prévia só existe na tela; o e-mail enviado é o HTML puro.
 - A lista de marcadores (`{{ hora }}` etc.) é fechada.
 - CSP: scripts só com nonce; `style-src 'unsafe-inline'` (Trix); sem fontes externas.
-- Sem API HTTP de envio; não criar uma.
+- Sem API HTTP de envio; não criar uma. O MCP é stdio sobre ssh, nunca HTTP.
 
 ## Brand Commitments
 Nome "Emailing". Sem logotipo nem identidade anterior que precise ser preservada; o

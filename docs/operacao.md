@@ -71,9 +71,9 @@ autenticado quebra o DMARC e a mensagem cai em spam.
 ## Enviar da linha de comando
 
 O `implantar.sh` instala `/usr/local/bin/emailing`, que roda `manage.py` como o
-usuário do serviço. É por aqui que se envia sem abrir a tela — e é a única porta
-programática que existe, de propósito
-([decisoes.md](decisoes.md#cli)).
+usuário do serviço. É por aqui que se envia sem abrir a tela — e, com o MCP
+logo abaixo (que é este mesmo comando por baixo), é a única porta programática
+que existe, de propósito ([decisoes.md](decisoes.md#cli)).
 
 ```bash
 # o que existe (é assim que se descobre o slug, sem chutar)
@@ -96,6 +96,95 @@ ssh leonardo_contabo 'emailing enviar --alias financeiro --para c@x.com \
 O arquivo do corpo e os anexos precisam ser legíveis pelo usuário `emailing` —
 `/tmp` com 644 serve. Tudo que sai por aqui aparece em `/historico/` igual ao
 que sai pela tela.
+
+## MCP: o Claude Code enviando e lendo e-mail
+
+`manage.py mcp` é um servidor MCP por stdio. O Claude Code o abre por ssh, com
+uma chave que **só** pode executar esse comando. O porquê de cada peça está em
+[decisoes.md](decisoes.md#mcp).
+
+### Configurar (uma vez)
+
+**1. Na máquina local, uma chave só para isto:**
+
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/emailing_mcp -C "emailing-mcp" -N ""
+```
+
+**2. No servidor, autorizá-la restrita ao MCP.** A linha vai inteira no
+`/root/.ssh/authorized_keys` (o `emailing` é que troca para o usuário do serviço):
+
+```bash
+ssh leonardo_contabo "echo 'command=\"/usr/local/bin/emailing mcp\",restrict $(cat ~/.ssh/emailing_mcp.pub)' >> /root/.ssh/authorized_keys"
+```
+
+**3. Na máquina local, um `Host` para ela** em `~/.ssh/config`:
+
+```
+Host emailing-mcp
+    HostName 203.0.113.10
+    User root
+    IdentityFile ~/.ssh/emailing_mcp
+    IdentitiesOnly yes
+    ServerAliveInterval 30
+```
+
+**4. Registrar no Claude Code** (escopo de usuário, vale em qualquer projeto):
+
+```bash
+claude mcp add --scope user emailing -- ssh -T emailing-mcp
+```
+
+**5. Liberar só as tools de leitura** em `~/.claude/settings.json`,
+`permissions.allow`:
+
+```json
+"mcp__emailing__listar_aliases", "mcp__emailing__listar_pastas",
+"mcp__emailing__buscar_emails", "mcp__emailing__ler_email",
+"mcp__emailing__conferir_email", "mcp__emailing__listar_agendados",
+"mcp__emailing__historico"
+```
+
+**Nunca** acrescente `enviar_email`, `agendar_email`, `cancelar_agendado`,
+`marcar_email` ou `mover_email` (nem `mcp__emailing__*`): a aprovação de cada
+chamada é a defesa contra um e-mail recebido que "pede" para encaminhar algo.
+
+**6. Ligar o recebimento por caixa**, em *Configurações → Contas SMTP →
+Recebimento* (o "Testar conexão" autentica no IMAP também):
+
+| Provedor | Servidor IMAP |
+|---|---|
+| GoDaddy (`smtpout.secureserver.net`) | `imap.secureserver.net`, 993 |
+| Hostinger | `imap.hostinger.com`, 993 |
+| Titan | `imap.titan.email`, 993 |
+
+### Conferir
+
+```bash
+# a chave não abre shell: isto abre o MCP (fica esperando JSON), não lista nada
+ssh -T emailing-mcp ls            # Ctrl-C para sair
+
+# com uma sessão do Claude Code aberta: um processo por sessão, ~100 MB
+ssh leonardo_contabo 'ps -o pid,rss,etime,args -u emailing | grep "manage.py mcp"'
+
+# o que o MCP mudou (enviar, agendar, rascunho, cancelar, marcar, mover)
+ssh leonardo_contabo 'journalctl -t emailing-mcp --since today'
+```
+
+Envios e agendamentos aparecem também em `/historico/` e `/agendados/`, como
+os de qualquer outra porta.
+
+### Ajustes
+
+| Variável | Padrão | |
+|---|---|---|
+| `MCP_MAX_ENVIOS_POR_SESSAO` | 10 | envios + agendamentos por sessão; `0` deixa só rascunho |
+| `MCP_LIMITE_CORPO` | 100000 | caracteres de corpo devolvidos por `ler_email` |
+| `IMAP_MAX_BYTES` | 30 MiB | mensagem maior não é baixada |
+| `IMAP_JANELA_ORDENACAO` | 2000 | sem `SORT` no servidor (GoDaddy), quantas mensagens recentes entram na ordenação por data |
+
+Para revogar o acesso do MCP: apague a linha `command="/usr/local/bin/emailing
+mcp"…` do `authorized_keys`. Nada mais depende dela.
 
 ## Envio programado
 

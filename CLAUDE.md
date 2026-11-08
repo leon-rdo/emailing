@@ -48,6 +48,8 @@ uv run pytest
   - `models.py` — `ContaEmail`, `Alias`, `RegistroEnvio`, `EnvioAgendado` (a fila
     **e** os rascunhos: é o status que separa)
   - `cripto.py` — cifra a senha SMTP
+  - `redacao.py` — valida e descreve a redação que não veio da tela (CLI e MCP)
+  - `caixa.py` — IMAP sob demanda (buscar, ler, marcar, mover); só o MCP usa
   - `aliases.py` — consulta ao banco + `verificar_aliases()`
   - `backup.py` — cópia verificada do banco, rotação e manifesto
   - `agendamento.py` — fila do envio programado: criar, editar, cancelar,
@@ -66,6 +68,8 @@ uv run pytest
     lateral (`?caixa=<id>`) e filtros só de apresentação (cor, trecho, data curta)
   - `static/mensagens/` — `estilo.css` (tokens no topo), `compor.js` (modal de escrita e
     prévia ao vivo), `app.js`, `editor.js` (Trix), `fontes/` (woff2 próprios)
+  - `mcp_servidor.py` — as tools MCP, finas sobre `redacao`/`envio`/`agendamento`/`caixa`
+  - `management/commands/mcp.py` — o servidor MCP por stdio (o que a chave ssh restrita abre)
   - `management/commands/enviar.py` — a porta do operador e de agentes (ssh)
   - `management/commands/despachar_agendados.py` — o que o cron chama
 
@@ -99,10 +103,17 @@ O racional completo está em [docs/decisoes.md](docs/decisoes.md). Em resumo:
   despacho de agendados**, que é o único lugar com trava de concorrência de
   verdade, porque lá não há humano nem POST-redirect-GET.
 - **Não existe API HTTP de envio**, e não é lacuna: quem envia por fora da tela
-  usa `manage.py enviar` por ssh. Um endpoint autenticado por token capaz de
-  enviar como estes domínios seria um relay aberto com DMARC alinhado se o
-  token vazasse.
-- **A linha de comando não tem trava de `hash_previa`** — lá não existe o
+  usa `manage.py enviar` ou o MCP (`manage.py mcp`), os dois por ssh. Um
+  endpoint autenticado por token capaz de enviar como estes domínios seria um
+  relay aberto com DMARC alinhado se o token vazasse. **O MCP é stdio sobre ssh,
+  com chave restrita; nunca transforme em MCP por HTTP.**
+- **Tools de escrita do MCP nunca entram na allowlist**, e o teto
+  `MCP_MAX_ENVIOS_POR_SESSAO` existe. O MCP lê a caixa: um e-mail recebido pode
+  "pedir" para encaminhar algo, e a aprovação humana é a trava. Ver
+  [decisoes.md](docs/decisoes.md#mcp-injecao).
+- **Ler pelo IMAP não marca como lida** (`EXAMINE` + `BODY.PEEK[]`), e **mover
+  nunca faz `EXPUNGE` geral**. A caixa não é copiada para o banco.
+- **A linha de comando (e o MCP) não têm trava de `hash_previa`** — lá não existe o
   intervalo humano que a trava protege. Quem quer conferir usa `--conferir`.
 - **Agendamento guarda o corpo cru do editor**, não o HTML pronto: sanitizar e
   expandir marcador acontecem no despacho, pelo mesmo caminho da tela.
