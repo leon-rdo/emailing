@@ -21,7 +21,11 @@ export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-/opt/uv-python}"
 cd "$ALVO"
 
 echo "== dependências =="
-"$UV" sync --frozen --no-dev
+# --compile-bytecode: o .venv é de root e só leitura para o `emailing`, então o
+# Python do serviço não consegue gravar os .pyc e recompila tudo a cada processo.
+# Para o gunicorn é uma vez por boot; para o `manage.py mcp`, que abre um processo
+# por sessão do Claude Code, eram ~5 s só para importar o `mcp` (medido).
+"$UV" sync --frozen --no-dev --compile-bytecode
 
 echo "== migrações =="
 "$UV" run --no-dev manage.py migrate --noinput
