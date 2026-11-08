@@ -26,7 +26,7 @@ lá) cabem num `CLAUDE.local.md`, que fica fora do git.
 rsync -az --delete \
   --exclude '.venv' --exclude 'data' --exclude 'staticfiles' \
   --exclude '.git' --exclude '__pycache__' --exclude '.env' \
-  --exclude '.pytest_cache' \
+  --exclude '.pytest_cache' --exclude 'CLAUDE.local.md' \
   ./ meu-servidor:/var/www/emailing/
 
 ssh meu-servidor 'sudo bash /var/www/emailing/deploy/implantar.sh'
