@@ -59,6 +59,10 @@ class Command(BaseCommand):
             "--anexo", action="append", default=[], metavar="CAMINHO",
             help="pode repetir; vale os mesmos limites do formulário.",
         )
+        parser.add_argument(
+            "--sem-assinatura", action="store_true", dest="sem_assinatura",
+            help="não acrescenta a assinatura do alias (o corpo já traz a sua).",
+        )
         parser.add_argument("--in-reply-to", dest="in_reply_to", default="")
         parser.add_argument("--referencias", default="")
         parser.add_argument(
@@ -97,6 +101,7 @@ class Command(BaseCommand):
                     "corpo": corpo,
                     "in_reply_to": options["in_reply_to"],
                     "referencias": options["referencias"],
+                    "sem_assinatura": options["sem_assinatura"],
                 },
                 modo="conferir" if conferir else "enviar",
             )

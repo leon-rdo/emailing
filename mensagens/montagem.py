@@ -60,6 +60,9 @@ class DadosRedacao:
     citacao_html: str = ""    # HTML já sanitizado do trecho citado (Etapa 8)
     in_reply_to: str = ""
     referencias: str = ""
+    # Falso quando o corpo já traz a sua própria assinatura (um HTML pronto,
+    # colado inteiro). Entra no html autoral, logo também no `hash_previa`.
+    assinatura: bool = True
 
 
 def montar_corpo(dados: DadosRedacao, alias: Alias) -> tuple[str, str]:
@@ -75,7 +78,7 @@ def montar_corpo(dados: DadosRedacao, alias: Alias) -> tuple[str, str]:
     # A assinatura NÃO passa pelo sanitizador: é conteúdo do operador,
     # cadastrado por quem administra o app. Sanitizá-la não protege de nada e
     # só pode destruir o layout em <table> e os estilos inline.
-    assinatura = assinatura_de(alias)
+    assinatura = assinatura_de(alias) if dados.assinatura else ""
     if assinatura:
         partes.append(assinatura)
 

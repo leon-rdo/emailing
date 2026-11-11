@@ -62,6 +62,7 @@ def dados_do_formulario(form) -> DadosRedacao:
         citacao_html=form.cleaned_data["citacao_html"],
         in_reply_to=form.cleaned_data["in_reply_to"],
         referencias=form.cleaned_data["referencias"],
+        assinatura=not form.cleaned_data.get("sem_assinatura", False),
     )
 
 
@@ -169,6 +170,8 @@ class FormularioRedacao(forms.Form):
     cco = ListaEnderecosField(label="Cco")
     assunto = forms.CharField(label="Assunto", max_length=200, required=False)
     corpo = forms.CharField(label="Mensagem", required=False, widget=forms.HiddenInput)
+    # Para quando o corpo já é um HTML pronto, com a sua própria assinatura.
+    sem_assinatura = forms.BooleanField(label="Sem assinatura", required=False)
     novo_anexo = CampoMultiploArquivo(label="Anexar arquivo")
 
     # Opcional mesmo no envio: o botão "Enviar" ignora e o "Agendar" exige. A

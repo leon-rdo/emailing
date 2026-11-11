@@ -304,6 +304,9 @@ class EnvioAgendado(models.Model):
 
     corpo_html = models.TextField("corpo (HTML do editor)", blank=True)
     citacao_html = models.TextField("citação", blank=True)
+    # A escolha de quem redigiu, guardada com a mensagem: o despacho monta o
+    # e-mail horas depois e precisa saber se a assinatura do alias vai junto.
+    assinatura = models.BooleanField("com a assinatura do alias", default=True)
     in_reply_to = models.CharField("in_reply_to", max_length=255, blank=True)
     referencias = models.TextField("referências", blank=True)
     token_anexos = models.CharField("token de anexos", max_length=64, blank=True)

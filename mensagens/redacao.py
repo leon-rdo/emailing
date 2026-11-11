@@ -90,7 +90,7 @@ def preparar(alias: Alias, campos: dict, *, modo: str = "enviar") -> DadosRedaca
     """`DadosRedacao` validado pelo mesmo formulário da tela.
 
     `campos` usa os nomes do formulário: para, cc, cco (texto com vírgulas),
-    assunto, corpo, in_reply_to, referencias, citacao_html.
+    assunto, corpo, in_reply_to, referencias, citacao_html, sem_assinatura.
 
     No modo "conferir" as duas tolerâncias da prévia da tela se separam. "Sem
     destinatário" continua valendo — conferir é do conteúdo, e o destinatário
@@ -112,6 +112,7 @@ def preparar(alias: Alias, campos: dict, *, modo: str = "enviar") -> DadosRedaca
             "in_reply_to": campos.get("in_reply_to", ""),
             "referencias": campos.get("referencias", ""),
             "citacao_html": campos.get("citacao_html", ""),
+            "sem_assinatura": campos.get("sem_assinatura", False),
         },
         aliases=carregar_aliases(),
     )
@@ -149,6 +150,7 @@ def descrever_conferencia(alias: Alias, dados: DadosRedacao, anexos, quando) -> 
         "assunto": dados.assunto,
         "in_reply_to": dados.in_reply_to,
         "referencias": dados.referencias,
+        "assinatura": dados.assinatura,
         "agendar_para": quando.isoformat() if quando else None,
         "anexos": [{"nome": a.nome, "tamanho": a.tamanho, "tipo": a.tipo} for a in anexos],
         "html": mensagem.alternatives[0][0],

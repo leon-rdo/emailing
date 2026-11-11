@@ -123,7 +123,10 @@
 				<div class="corpo-editor">
 					<div class="cabecalho-campo">
 						<label class="so-leitor" for="id_corpo">Mensagem</label>
-						<label class="alternar"><input type="checkbox" id="alternar-html-bruto"> Editar HTML bruto</label>
+						<div class="alternadores">
+							<label class="alternar" title="Para quando o corpo já traz a sua própria assinatura">{{ form.sem_assinatura }} Sem assinatura</label>
+							<label class="alternar"><input type="checkbox" id="alternar-html-bruto"> Editar HTML bruto</label>
+						</div>
 					</div>
 					{{ form.corpo }}
 					<trix-editor id="editor-trix" input="id_corpo" class="editor-trix" placeholder="Escreva a mensagem…" aria-label="Mensagem"></trix-editor>

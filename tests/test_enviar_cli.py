@@ -363,3 +363,15 @@ def test_anexo_agendado_pela_cli_fica_guardado(alias_de_teste, tmp_path, setting
     agendado = EnvioAgendado.objects.get()
     assert agendado.token_anexos
     assert len(listar_anexos(agendado.token_anexos)) == 1
+
+
+def test_sem_assinatura_pela_linha_de_comando(alias_de_teste, tmp_path):
+    alias_de_teste.assinatura_html = "<p>ASSINATURA-DO-ALIAS</p>"
+    alias_de_teste.save()
+
+    _chamar("--alias", "financeiro", "--para", "c@x.com", "--sem-assinatura",
+            "--corpo-arquivo", _corpo(tmp_path, "<table><tr><td>pronto</td></tr></table>"))
+
+    html = mail.outbox[0].alternatives[0][0]
+    assert "pronto" in html
+    assert "ASSINATURA-DO-ALIAS" not in html

@@ -738,6 +738,7 @@ dialog.escrever-modal::backdrop { background: rgb(14 14 18 / .4); }
 	cursor: pointer;
 }
 .alternar input { width: auto; margin: 0; accent-color: var(--acao); }
+.alternadores { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 16px; }
 
 .editor-html-bruto {
 	min-height: 260px;

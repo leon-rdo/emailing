@@ -17,6 +17,7 @@ from django.views.decorators.http import require_POST
 
 from .agendamento import (
     agendar,
+    campos_do_formulario,
     cancelar,
     dados_de,
     descartar_rascunho,
@@ -110,15 +111,7 @@ def _formulario_da_linha(linha: EnvioAgendado, token: str) -> dict:
     inicial (ver `_previa_inicial`).
     """
     return {
-        "alias": linha.alias.slug,
-        "para": ", ".join(linha.para),
-        "cc": ", ".join(linha.cc),
-        "cco": ", ".join(linha.cco),
-        "assunto": linha.assunto,
-        "corpo": linha.corpo_html,
-        "citacao_html": linha.citacao_html,
-        "in_reply_to": linha.in_reply_to,
-        "referencias": linha.referencias,
+        **campos_do_formulario(linha),
         "rascunho": token,
         "enviar_em": (
             timezone.localtime(linha.enviar_em).strftime("%Y-%m-%dT%H:%M")

@@ -668,3 +668,16 @@ def test_comando_de_limpeza_expira_rascunhos_conforme_o_env(alias_de_teste, sett
     call_command("limpar_rascunhos")
 
     assert not EnvioAgendado.objects.filter(pk=velho.pk).exists()
+
+
+def test_assinatura_desligada_sobrevive_ao_banco_e_ao_despacho(alias_de_teste):
+    """O despacho monta o e-mail horas depois: a escolha tem de estar guardada."""
+    alias_de_teste.assinatura_html = "<p>ASSINATURA-DO-ALIAS</p>"
+    alias_de_teste.save()
+    agendado = agendar(
+        alias_de_teste, _dados(assinatura=False), timezone.now() - timedelta(minutes=1)
+    )
+
+    assert dados_de(EnvioAgendado.objects.get(pk=agendado.pk)).assinatura is False
+    despachar_pendentes()
+    assert "ASSINATURA-DO-ALIAS" not in mail.outbox[0].alternatives[0][0]

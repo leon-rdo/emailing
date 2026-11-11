@@ -1058,3 +1058,44 @@ def test_admin_abre_rascunho_sem_data(client, logado, alias_de_teste):
     assert client.get(reverse("admin:mensagens_envioagendado_changelist")).status_code == 200
     ficha = reverse("admin:mensagens_envioagendado_change", args=[rascunho.pk])
     assert client.get(ficha).status_code == 200
+
+
+def test_sem_assinatura_tira_da_previa_do_hash_e_do_envio(client, logado, alias_de_teste):
+    from django.core import mail
+
+    alias_de_teste.assinatura_html = "<p>ASSINATURA-DO-ALIAS</p>"
+    alias_de_teste.save()
+    dados = _dados_de_redacao()
+
+    com = client.post(reverse("mensagens:previa_ajax"), dados).json()
+    sem = client.post(reverse("mensagens:previa_ajax"), {**dados, "sem_assinatura": "on"}).json()
+    assert "ASSINATURA-DO-ALIAS" in com["html"]
+    assert "ASSINATURA-DO-ALIAS" not in sem["html"]
+    assert com["hash"] != sem["hash"]
+
+    pronto = _com_previa(client, {**dados, "sem_assinatura": "on"})
+    client.post(reverse("mensagens:inicio"), {**pronto, "acao": "enviar"})
+    assert "ASSINATURA-DO-ALIAS" not in mail.outbox[0].alternatives[0][0]
+
+
+def test_rascunho_sem_assinatura_reabre_marcado_e_continua_sem(client, logado, alias_de_teste):
+    """Um rascunho guardado sem assinatura (pelo MCP, por exemplo) e reaberto na tela não
+    pode voltar a ganhar a assinatura no próximo "salvar"."""
+    from mensagens.agendamento import guardar_rascunho
+    from mensagens.montagem import DadosRedacao
+
+    rascunho = guardar_rascunho(
+        alias_de_teste, DadosRedacao(para=[], assunto="HTML pronto", assinatura=False)
+    )
+    url = reverse("mensagens:editar", args=[rascunho.pk])
+
+    resposta = client.get(url)
+    assert resposta.context["form"].initial["sem_assinatura"] is True
+    assert resposta.context["form"]["sem_assinatura"].value() is True
+    caixa = re.search(r'<input[^>]*name="sem_assinatura"[^>]*>', resposta.content.decode())
+    assert caixa and "checked" in caixa.group(0)
+
+    client.post(url, {"acao": "salvar_rascunho", "alias": "financeiro", "assunto": "v2",
+                      "corpo": "<p>x</p>", "sem_assinatura": "on"})
+    rascunho.refresh_from_db()
+    assert rascunho.assinatura is False

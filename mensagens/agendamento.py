@@ -66,6 +66,7 @@ def _campos_de(dados: DadosRedacao) -> dict:
         "citacao_html": dados.citacao_html,
         "in_reply_to": dados.in_reply_to,
         "referencias": dados.referencias,
+        "assinatura": dados.assinatura,
     }
 
 
@@ -210,7 +211,30 @@ def dados_de(agendado: EnvioAgendado) -> DadosRedacao:
         citacao_html=agendado.citacao_html,
         in_reply_to=agendado.in_reply_to,
         referencias=agendado.referencias,
+        assinatura=agendado.assinatura,
     )
+
+
+def campos_do_formulario(agendado: EnvioAgendado) -> dict:
+    """A mensagem guardada como os campos do `FormularioRedacao` (texto).
+
+    Compartilhado pela tela de edição e pelo MCP: as duas reabrem uma mensagem
+    pelo mesmo dicionário, então um campo novo (como a assinatura) não pode ser
+    lembrado por uma e esquecido pela outra — esquecer faria o próximo
+    "salvar" desfazer a escolha em silêncio.
+    """
+    return {
+        "alias": agendado.alias.slug,
+        "para": ", ".join(agendado.para),
+        "cc": ", ".join(agendado.cc),
+        "cco": ", ".join(agendado.cco),
+        "assunto": agendado.assunto,
+        "corpo": agendado.corpo_html,
+        "citacao_html": agendado.citacao_html,
+        "in_reply_to": agendado.in_reply_to,
+        "referencias": agendado.referencias,
+        "sem_assinatura": not agendado.assinatura,
+    }
 
 
 def cancelar(pk: int) -> bool:

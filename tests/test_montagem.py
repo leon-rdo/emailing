@@ -180,3 +180,30 @@ def test_hash_previa_muda_com_o_destinatario(alias_de_teste):
         DadosRedacao(para=["a@x.com"], assunto="Um"), alias_de_teste, html
     )
     assert mesmo_para_assunto_muda != para_a
+
+
+def test_sem_a_assinatura_do_alias_quando_pedido(alias_de_teste):
+    """Para quando o corpo já é um HTML pronto, com a assinatura dele."""
+    alias_de_teste.assinatura_html = ASSINATURA
+    alias_de_teste.save()
+
+    com, _ = montar_corpo(DadosRedacao(para=["c@x.com"], corpo_html="<p>oi</p>"), alias_de_teste)
+    sem, texto = montar_corpo(
+        DadosRedacao(para=["c@x.com"], corpo_html="<p>oi</p>", assinatura=False), alias_de_teste
+    )
+
+    assert ASSINATURA in com
+    assert ASSINATURA not in sem and "Ana" not in texto
+    assert "oi" in sem
+
+
+def test_tirar_a_assinatura_muda_o_hash_da_previa(alias_de_teste):
+    """A escolha muda o que sai, então tem de invalidar uma prévia feita com a outra."""
+    alias_de_teste.assinatura_html = ASSINATURA
+    alias_de_teste.save()
+    hashes = set()
+    for assinatura in (True, False):
+        dados = DadosRedacao(para=["c@x.com"], corpo_html="<p>oi</p>", assinatura=assinatura)
+        html, _ = montar_corpo(dados, alias_de_teste)
+        hashes.add(calcular_hash_previa(dados, alias_de_teste, html))
+    assert len(hashes) == 2
