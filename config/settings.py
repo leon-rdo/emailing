@@ -377,7 +377,7 @@ AGENDADOS_AVISAR_ALIAS = os.environ.get("AGENDADOS_AVISAR_ALIAS", "").strip()
 # aprovação no Claude Code; isto freia um agente em laço, inclusive um levado
 # por um e-mail recebido que "pede" para encaminhar algo. `0` desliga o envio
 # pelo MCP (fica só rascunho).
-MCP_MAX_ENVIOS_POR_SESSAO = env_int("MCP_MAX_ENVIOS_POR_SESSAO", 10)
+MCP_MAX_ENVIOS_POR_SESSAO = env_int("MCP_MAX_ENVIOS_POR_SESSAO", 50)
 # Caracteres de corpo devolvidos por `ler_email`. Mensagem maior volta cortada,
 # com `corpo_truncado: true`.
 MCP_LIMITE_CORPO = env_int("MCP_LIMITE_CORPO", 100_000)

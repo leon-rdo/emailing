@@ -265,13 +265,15 @@ def test_anotacoes_separam_leitura_de_escrita(db):
     por_nome = {f.name: f.annotations for f in ferramentas}
 
     leitura = {"listar_aliases", "listar_pastas", "buscar_emails", "ler_email",
-               "conferir_email", "listar_agendados", "historico"}
+               "conferir_email", "listar_agendados", "historico", "ler_agendado"}
     escrita = {"enviar_email", "agendar_email", "salvar_rascunho", "cancelar_agendado",
-               "marcar_email", "mover_email"}
+               "marcar_email", "mover_email", "editar_mensagem", "agendar_rascunho",
+               "tirar_da_fila", "descartar_rascunho"}
     assert set(por_nome) == leitura | escrita
     assert all(por_nome[n].read_only_hint is True for n in leitura)
     assert all(por_nome[n].read_only_hint is False for n in escrita)
-    assert por_nome["enviar_email"].destructive_hint is True
+    for nome in ("enviar_email", "editar_mensagem", "agendar_rascunho", "descartar_rascunho"):
+        assert por_nome[nome].destructive_hint is True, nome
 
 
 @pytest.mark.django_db(transaction=True)
@@ -287,3 +289,199 @@ def test_chamada_pelo_protocolo_roda_o_orm_na_worker_thread(alias_de_teste):
     assert ok.structured_content["aliases"][0]["slug"] == "financeiro"
     assert erro.is_error is True
     assert "Alias desconhecido" in erro.content[0].text
+
+
+# ---------------------------------------------------------------------------
+# Assinatura opcional
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def com_assinatura(alias_de_teste):
+    alias_de_teste.assinatura_html = "<p>ASSINATURA-DO-ALIAS</p>"
+    alias_de_teste.save()
+    return alias_de_teste
+
+
+def test_enviar_e_conferir_sem_assinatura(com_assinatura):
+    corpo = "<table><tr><td>HTML pronto</td></tr></table>"
+    conferido = m.conferir_email(alias="financeiro", corpo_html=corpo, assinatura=False)
+    assert conferido["assinatura"] is False
+    assert "ASSINATURA-DO-ALIAS" not in conferido["html"]
+
+    m.enviar_email(alias="financeiro", para=["c@x.com"], corpo_html=corpo, assinatura=False)
+    assert "ASSINATURA-DO-ALIAS" not in mail.outbox[0].alternatives[0][0]
+
+    m.enviar_email(alias="financeiro", para=["c@x.com"], corpo_html="<p>normal</p>")
+    assert "ASSINATURA-DO-ALIAS" in mail.outbox[1].alternatives[0][0]
+
+
+def test_rascunho_e_agendado_guardam_a_escolha(com_assinatura):
+    r = m.salvar_rascunho(alias="financeiro", corpo_html="<p>x</p>", assinatura=False)
+    a = m.agendar_email(alias="financeiro", em=_daqui_a(), para=["c@x.com"],
+                        corpo_html="<p>x</p>", assinatura=False)
+    assert EnvioAgendado.objects.get(pk=r["rascunho"]).assinatura is False
+    assert EnvioAgendado.objects.get(pk=a["agendado"]).assinatura is False
+    assert all(x["assinatura"] is False for x in m.listar_agendados(status="todos")["mensagens"])
+
+
+def test_teto_padrao_e_50():
+    from django.conf import settings
+
+    assert settings.MCP_MAX_ENVIOS_POR_SESSAO == 50
+
+
+# ---------------------------------------------------------------------------
+# Editar agendados e rascunhos
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def anexos_em(tmp_path, settings):
+    settings.RASCUNHOS_DIR = tmp_path
+    return tmp_path
+
+
+def _agendado_com_anexo(alias):
+    from django.core.files.uploadedfile import SimpleUploadedFile
+
+    from mensagens.agendamento import agendar
+    from mensagens.anexos import criar_token, salvar_anexo
+    from mensagens.montagem import DadosRedacao
+
+    token = criar_token()
+    salvar_anexo(token, SimpleUploadedFile("contrato.pdf", b"conteudo"))
+    dados = DadosRedacao(para=["a@x.com"], cc=["b@x.com"], assunto="Original",
+                         corpo_html="<p>texto original</p>")
+    return agendar(alias, dados, timezone.now() + timedelta(days=1), token_anexos=token)
+
+
+def _nomes_dos_anexos(linha):
+    from mensagens.anexos import listar_anexos
+
+    return [a.nome for a in listar_anexos(linha.token_anexos)]
+
+
+def test_ler_agendado_traz_o_conteudo_completo(alias_de_teste, anexos_em):
+    agendado = _agendado_com_anexo(alias_de_teste)
+    lido = m.ler_agendado(id=agendado.pk)
+    assert lido["status"] == "agendado" and lido["editavel"] is True
+    assert lido["corpo_html"] == "<p>texto original</p>"
+    assert lido["cc"] == ["b@x.com"]
+    assert lido["assinatura"] is True
+    assert [a["nome"] for a in lido["anexos"]] == ["contrato.pdf"]
+    with pytest.raises(ToolError, match="não existe"):
+        m.ler_agendado(id=9999)
+
+
+def test_editar_agendado_muda_so_o_que_foi_passado_e_preserva_anexos(
+    alias_de_teste, anexos_em
+):
+    agendado = _agendado_com_anexo(alias_de_teste)
+    token_antigo = agendado.token_anexos
+    nova_data = _daqui_a(horas=48)
+
+    resultado = m.editar_mensagem(id=agendado.pk, assunto="Corrigido", em=nova_data,
+                                  assinatura=False)
+
+    agendado.refresh_from_db()
+    assert resultado["status"] == agendado.status == "agendado"
+    assert agendado.assunto == "Corrigido"
+    assert agendado.assinatura is False
+    assert agendado.para == ["a@x.com"] and agendado.cc == ["b@x.com"]  # não passados
+    assert agendado.corpo_html == "<p>texto original</p>"
+    assert timezone.localtime(agendado.enviar_em).strftime("%Y-%m-%d %H:%M") == nova_data
+    assert _nomes_dos_anexos(agendado) == ["contrato.pdf"]
+    assert agendado.token_anexos != token_antigo  # a cópia virou a pasta da mensagem
+    assert not (anexos_em / token_antigo).exists()
+
+
+def test_editar_rascunho_aceita_lista_vazia_e_apaga_data_provisoria(alias_de_teste):
+    r = m.salvar_rascunho(alias="financeiro", para=["a@x.com"], corpo_html="<p>x</p>",
+                          em="2026-12-01 09:00")
+    m.editar_mensagem(id=r["rascunho"], para=[], em="")
+    rascunho = EnvioAgendado.objects.get(pk=r["rascunho"])
+    assert rascunho.status == "rascunho"
+    assert rascunho.para == [] and rascunho.enviar_em is None
+
+
+def test_editar_agendado_valida_como_envio(alias_de_teste, anexos_em):
+    agendado = _agendado_com_anexo(alias_de_teste)
+    with pytest.raises(ToolError, match="para"):
+        m.editar_mensagem(id=agendado.pk, para=[])
+    with pytest.raises(ToolError, match="tirar_da_fila"):
+        m.editar_mensagem(id=agendado.pk, em="")
+    with pytest.raises(ToolError, match="já passou"):
+        m.editar_mensagem(id=agendado.pk, em="2020-01-01 09:00")
+
+    EnvioAgendado.objects.filter(pk=agendado.pk).update(
+        enviar_em=timezone.now() - timedelta(minutes=5)
+    )
+    with pytest.raises(ToolError, match="já passou; informe uma nova"):
+        m.editar_mensagem(id=agendado.pk, assunto="sem data nova")
+    agendado.refresh_from_db()
+    assert agendado.assunto == "Original"
+
+
+def test_editar_perdendo_a_corrida_nao_salva_nem_apaga_os_anexos(
+    alias_de_teste, anexos_em, monkeypatch
+):
+    """O cron reivindica a mensagem entre a leitura e a gravação."""
+    agendado = _agendado_com_anexo(alias_de_teste)
+    original = m.preparar
+
+    def cron_no_meio(*args, **kwargs):
+        EnvioAgendado.objects.filter(pk=agendado.pk).update(status="enviando")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(m, "preparar", cron_no_meio)
+    with pytest.raises(ToolError, match="mudou de estado.*Nada foi salvo"):
+        m.editar_mensagem(id=agendado.pk, assunto="tarde demais")
+
+    agendado.refresh_from_db()
+    assert agendado.assunto == "Original"
+    assert _nomes_dos_anexos(agendado) == ["contrato.pdf"]  # o despacho ainda os tem
+
+
+def test_encerrado_nao_se_edita(alias_de_teste, anexos_em):
+    agendado = _agendado_com_anexo(alias_de_teste)
+    m.cancelar_agendado(id=agendado.pk)
+    with pytest.raises(ToolError, match="status cancelado"):
+        m.editar_mensagem(id=agendado.pk, assunto="x")
+
+
+def test_tirar_da_fila_e_agendar_de_novo(alias_de_teste, anexos_em, settings):
+    agendado = _agendado_com_anexo(alias_de_teste)
+    data = agendado.enviar_em
+
+    m.tirar_da_fila(id=agendado.pk)
+    agendado.refresh_from_db()
+    assert agendado.status == "rascunho" and agendado.enviar_em == data
+    assert _nomes_dos_anexos(agendado) == ["contrato.pdf"]
+
+    settings.MCP_MAX_ENVIOS_POR_SESSAO = 1
+    resultado = m.agendar_rascunho(id=agendado.pk)  # a data provisória ainda é futura
+    agendado.refresh_from_db()
+    assert resultado["agendado"] == agendado.pk and agendado.status == "agendado"
+    assert agendado.enviar_em == data
+    with pytest.raises(ToolError, match="Teto de 1"):  # agendar conta no teto
+        m.agendar_email(alias="financeiro", em=_daqui_a(), para=["c@x.com"])
+
+
+def test_agendar_rascunho_exige_destinatario_e_data(alias_de_teste):
+    r = m.salvar_rascunho(alias="financeiro", corpo_html="<p>x</p>")
+    with pytest.raises(ToolError, match="data no futuro"):
+        m.agendar_rascunho(id=r["rascunho"])
+    with pytest.raises(ToolError, match="para"):
+        m.agendar_rascunho(id=r["rascunho"], em=_daqui_a())
+    assert EnvioAgendado.objects.get(pk=r["rascunho"]).status == "rascunho"
+
+
+def test_descartar_so_rascunho(alias_de_teste, anexos_em):
+    r = m.salvar_rascunho(alias="financeiro", corpo_html="<p>x</p>")
+    assert m.descartar_rascunho(id=r["rascunho"]) == {"ok": True, "descartado": r["rascunho"]}
+    assert not EnvioAgendado.objects.filter(pk=r["rascunho"]).exists()
+
+    agendado = _agendado_com_anexo(alias_de_teste)
+    with pytest.raises(ToolError, match="não é rascunho"):
+        m.descartar_rascunho(id=agendado.pk)
