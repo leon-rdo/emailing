@@ -91,7 +91,9 @@ clique em Enviar, e o envio seria recusado por "o conteúdo mudou".
 
 A **assinatura não passa pelo sanitizador**. É conteúdo do operador, cadastrado
 no admin; sanitizá-la não protege de nada e destruiria o layout em `<table>`
-com estilo inline.
+com estilo inline. E ela é **opcional por mensagem** (`DadosRedacao.assinatura`,
+guardada em `EnvioAgendado.assinatura`), para quando o corpo já é um HTML pronto
+com a sua — ver [decisoes.md](decisoes.md#assinatura-opcional).
 
 O corpo sai em **quoted-printable**, não no `8bit` que o Django usa por padrão
 — ver [entregabilidade.md](entregabilidade.md#encoding).
@@ -167,7 +169,11 @@ por `caixa.py`. Erro de domínio vira `ToolError` com a mensagem em português.
 
 | Leitura (podem ir para a allowlist) | Escrita (aprovação a cada chamada) |
 |---|---|
-| `listar_aliases`, `listar_pastas`, `buscar_emails`, `ler_email`, `conferir_email`, `listar_agendados`, `historico` | `enviar_email`, `agendar_email`, `salvar_rascunho`, `cancelar_agendado`, `marcar_email`, `mover_email` |
+| `listar_aliases`, `listar_pastas`, `buscar_emails`, `ler_email`, `conferir_email`, `listar_agendados`, `historico`, `ler_agendado` | `enviar_email`, `agendar_email`, `salvar_rascunho`, `editar_mensagem`, `agendar_rascunho`, `tirar_da_fila`, `cancelar_agendado`, `descartar_rascunho`, `marcar_email`, `mover_email` |
+
+As de edição (`editar_mensagem`, `agendar_rascunho`, `tirar_da_fila`) gravam
+pelo mesmo `reescrever` da tela, sobre uma cópia dos anexos — ver
+[decisoes.md](decisoes.md#mcp-edicao).
 
 O que o MCP tem e a CLI não: o **teto de envios por sessão** e a leitura da
 caixa. O porquê de cada escolha está em [decisoes.md](decisoes.md#mcp).

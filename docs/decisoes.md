@@ -520,11 +520,16 @@ leitura e envio no mesmo agente, esse é o risco do projeto. As defesas, por ord
 de importância:
 
 1. **As tools de escrita nunca entram na allowlist do Claude Code.** Cada
-   `enviar_email`, `agendar_email`, `cancelar_agendado`, `marcar_email`,
-   `mover_email` pede aprovação com os argumentos à vista. Só as de leitura podem
+   `enviar_email`, `agendar_email`, `editar_mensagem`, `agendar_rascunho`,
+   `cancelar_agendado`, `marcar_email`, `mover_email` (e as demais de escrita)
+   pede aprovação com os argumentos à vista. Só as de leitura podem
    ser liberadas. É a única defesa que não depende do modelo se comportar.
-2. **Teto por sessão** (`MCP_MAX_ENVIOS_POR_SESSAO`, 10): freia um laço. `0`
-   desliga o envio pelo MCP e deixa só rascunho.
+2. **Teto por sessão** (`MCP_MAX_ENVIOS_POR_SESSAO`, 50): freia um laço. Conta
+   envios e agendamentos, inclusive `agendar_rascunho`; editar o que já está na
+   fila não conta, porque não aumenta o que sai. `0` desliga o envio pelo MCP e
+   deixa só rascunho. Começou em 10 e subiu para 50 em novembro/2026: com a
+   aprovação a cada chamada, 10 travava lotes legítimos e não protegia de nada
+   que a aprovação já não protegesse.
 3. **Conteúdo recebido é marcado como dado**: as `INSTRUCOES` do servidor, a
    descrição de `ler_email` e o campo `conteudo_externo: true` no resultado. Isso
    ajuda, mas não é garantia — por isso vem por último.
@@ -613,6 +618,41 @@ só aquela UID. Um `EXPUNGE` puro apagaria de vez **toda** mensagem que outro
 cliente tivesse marcado `\Deleted` na pasta — então, sem UIDPLUS, `mover_email`
 recusa e manda usar o webmail. Não há tool de apagar: descartar é mover para a
 lixeira, que dá para desfazer.
+
+### Editar pelo MCP é o `reescrever` da tela, sobre uma cópia dos anexos {#mcp-edicao}
+
+`editar_mensagem`, `agendar_rascunho` e `tirar_da_fila` gravam por
+`agendamento.reescrever` — o `UPDATE … WHERE status` conferido pelo rowcount de
+[#edicao](#edicao) — e sempre sobre uma **cópia** dos anexos
+(`anexos.copiar_rascunho`), mesmo sem mexer em anexo nenhum. Parece cerimônia e
+não é: `reescrever` apaga a pasta que recebeu quando perde a corrida com o cron.
+Passar a pasta original em vez da cópia faria uma edição perdida apagar os
+anexos de uma mensagem que está sendo despachada. Há teste que simula o cron
+reivindicando a mensagem no meio da edição.
+
+O resto segue as regras da tela, de propósito: editar não muda status; um
+agendado editado precisa de destinatário e de data no futuro (como "Salvar
+alterações"); um rascunho não julga a data. `editar_mensagem` é parcial — o que
+não é passado fica como está —, e os campos saem de
+`agendamento.campos_do_formulario`, o mesmo dicionário com que a tela reabre a
+mensagem. Um campo lembrado por uma porta e esquecido pela outra seria desfeito
+em silêncio no próximo "salvar".
+
+`ler_agendado` não devolve a citação de uma resposta: é conteúdo do e-mail
+original, de terceiros. Diz só se há uma (`tem_citacao`), e a edição a preserva.
+
+### A assinatura é uma escolha por mensagem, guardada com ela {#assinatura-opcional}
+
+**Alternativa:** um parâmetro só do envio imediato.
+**Por que não:** agendado e rascunho são montados depois — pelo cron, ou quando
+o operador reabre na tela —, então a escolha precisa morar na linha
+(`EnvioAgendado.assinatura`). Pelo mesmo motivo a tela ganhou a caixa "Sem
+assinatura", ao lado de "Editar HTML bruto" (que é o caso de uso: colar um HTML
+pronto, que já traz a sua): sem ela, um rascunho guardado sem assinatura pelo MCP
+e salvo de novo na tela voltaria a ganhá-la.
+
+A escolha muda o HTML autoral, então muda o `hash_previa`: uma prévia feita com
+assinatura não autoriza enviar sem ela.
 
 ### Sem anexos no MCP (por enquanto)
 

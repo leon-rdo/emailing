@@ -19,6 +19,12 @@ ssh. Elas rodam na VPS, com a mesma validação da tela e o mesmo histórico.
    a assinatura do alias — não a escreva no corpo), depois `enviar_email` ou
    `agendar_email(em="2026-09-10 09:00")`.
 4. Na dúvida sobre o texto, `salvar_rascunho`: o operador revisa e envia pela tela.
+5. **Para mudar algo já guardado:** `listar_agendados` → `ler_agendado(id)` →
+   `editar_mensagem(id, …)` com só os campos que mudam (o resto fica). O status
+   muda por `agendar_rascunho`, `tirar_da_fila`, `cancelar_agendado` e
+   `descartar_rascunho`.
+6. **Corpo que já é um HTML pronto, com assinatura própria:** passe
+   `assinatura=false`, senão a assinatura do alias sai duplicada.
 
 Regras:
 

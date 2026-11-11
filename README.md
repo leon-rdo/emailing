@@ -217,9 +217,11 @@ Claude Code — foi para isso que o comando ganhou `--conferir` e `--json`.
 ### Pelo Claude Code (MCP)
 
 `manage.py mcp` é um servidor MCP por stdio que o Claude Code abre por ssh, com
-uma chave que só executa esse comando. Ele envia, agenda, guarda rascunho e
-**lê a caixa de entrada** por IMAP: busca, lê (sem marcar como lida), responde
-com o encadeamento certo (`responder_a`), marca e move.
+uma chave que só executa esse comando. Ele envia, agenda, guarda rascunho,
+**edita agendados e rascunhos** e **lê a caixa de entrada** por IMAP: busca, lê
+(sem marcar como lida), responde com o encadeamento certo (`responder_a`), marca
+e move. Toda redação aceita `assinatura=false`, para quando o corpo já é um HTML
+pronto com a sua — a mesma opção que a tela tem na caixa "Sem assinatura".
 
 ```bash
 claude mcp add --scope user emailing -- ssh -T emailing-mcp

@@ -83,7 +83,9 @@ O racional completo está em [docs/decisoes.md](docs/decisoes.md). Em resumo:
 - **Nomes de domínio em português, identificadores de protocolo em inglês.**
   `criado_em`, `remetente`, `assunto` — mas `message_id` e `in_reply_to`,
   porque são nomes de cabeçalho da RFC 5322.
-- **A assinatura não passa pelo sanitizador.** É conteúdo do operador.
+- **A assinatura não passa pelo sanitizador.** É conteúdo do operador. E é
+  opcional por mensagem (`assinatura`), **guardada no `EnvioAgendado`** — o
+  despacho e a tela reabrem a escolha de lá.
 - **O CSS é embutido antes de sanitizar**, e por isso `class`/`<style>`
   sobrevivem.
 - **A prévia não exige destinatário nem valida endereço.** Já quebrou duas
@@ -98,7 +100,8 @@ O racional completo está em [docs/decisoes.md](docs/decisoes.md). Em resumo:
   [decisoes.md](docs/decisoes.md#rascunho).
 - **Editar um agendado é `UPDATE … WHERE status`, sobre uma cópia dos anexos.**
   Nunca `if` + `save()`, nunca editar a pasta viva — o cron concorre pela linha.
-  Ver [decisoes.md](docs/decisoes.md#edicao).
+  Vale também para o MCP (`editar_mensagem` e afins). Ver
+  [decisoes.md](docs/decisoes.md#edicao).
 - **`SMTP_TIMEOUT` não é opcional.**
 - **Corpo em quoted-printable**, não no `8bit` do Django.
 - **A importação de `.eml` nunca toca o disco.**

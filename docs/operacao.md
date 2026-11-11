@@ -144,12 +144,14 @@ claude mcp add --scope user emailing -- ssh -T emailing-mcp
 "mcp__emailing__listar_aliases", "mcp__emailing__listar_pastas",
 "mcp__emailing__buscar_emails", "mcp__emailing__ler_email",
 "mcp__emailing__conferir_email", "mcp__emailing__listar_agendados",
-"mcp__emailing__historico"
+"mcp__emailing__historico", "mcp__emailing__ler_agendado"
 ```
 
-**Nunca** acrescente `enviar_email`, `agendar_email`, `cancelar_agendado`,
-`marcar_email` ou `mover_email` (nem `mcp__emailing__*`): a aprovação de cada
-chamada é a defesa contra um e-mail recebido que "pede" para encaminhar algo.
+**Nunca** acrescente as de escrita — `enviar_email`, `agendar_email`,
+`salvar_rascunho`, `editar_mensagem`, `agendar_rascunho`, `tirar_da_fila`,
+`cancelar_agendado`, `descartar_rascunho`, `marcar_email`, `mover_email` —, nem
+`mcp__emailing__*`: a aprovação de cada chamada é a defesa contra um e-mail
+recebido que "pede" para encaminhar algo.
 
 **6. Ligar o recebimento por caixa**, em *Configurações → Contas SMTP →
 Recebimento* (o "Testar conexão" autentica no IMAP também):
@@ -180,7 +182,7 @@ os de qualquer outra porta.
 
 | Variável | Padrão | |
 |---|---|---|
-| `MCP_MAX_ENVIOS_POR_SESSAO` | 10 | envios + agendamentos por sessão; `0` deixa só rascunho |
+| `MCP_MAX_ENVIOS_POR_SESSAO` | 50 | envios + agendamentos por sessão; `0` deixa só rascunho |
 | `MCP_LIMITE_CORPO` | 100000 | caracteres de corpo devolvidos por `ler_email` |
 | `IMAP_MAX_BYTES` | 30 MiB | mensagem maior não é baixada |
 | `IMAP_JANELA_ORDENACAO` | 2000 | sem `SORT` no servidor (GoDaddy), quantas mensagens recentes entram na ordenação por data |
