@@ -77,8 +77,8 @@ alias em CCO, o que só entregava a cópia na caixa de entrada).
   `Sent` na GoDaddy, `INBOX.Sent` na Hostinger.
 - A cópia leva `Bcc:` (o Django o tira do que vai pelo SMTP) e `\Seen`.
 - Conta **sem `imap_host`** não grava nada. Conta cujo provedor já guarda a cópia
-  sozinho (Gmail, por exemplo) duplicaria: hoje não há opção por conta para
-  desligar.
+  sozinho (Gmail, por exemplo) duplicaria, então há `ContaEmail.guardar_enviados`
+  (padrão ligado; Configurações → Contas → Recebimento) para desligar por conta.
 - Custo: uma conexão IMAP a mais por envio, depois do SMTP, com o `timeout` da conta.
 
 ### Envelope no alias, não na caixa

@@ -68,6 +68,14 @@ class ContaEmail(models.Model):
         help_text="Vazio = sem recebimento. Ex.: imap.hostinger.com, imap.secureserver.net",
     )
     imap_porta = models.PositiveIntegerField("porta IMAP", default=993)
+    guardar_enviados = models.BooleanField(
+        "guardar cópia em Enviados", default=True,
+        help_text=(
+            "Depois de enviar, grava a mensagem na pasta de enviados da caixa por IMAP "
+            "(o SMTP não faz isso). Desligue se o provedor já guarda a cópia sozinho; "
+            "sem servidor IMAP, não tem efeito."
+        ),
+    )
 
     class Meta:
         ordering = ["nome"]

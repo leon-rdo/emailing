@@ -40,11 +40,12 @@ def _fixar_nome_no_ehlo(dominio: str) -> None:
 def _copiar_em_enviados(alias: Alias, mensagem, message_id: str) -> None:
     """Melhor-esforço: a mensagem **já saiu**, então nada aqui pode virar falha de envio.
 
-    Sem `imap_host` não há o que fazer (a caixa é só de envio), . Qualquer erro vira
+    Sem `imap_host` não há o que fazer (a caixa é só de envio), e a conta pode ter
+    desligado a cópia (`guardar_enviados`: o provedor já guarda). Qualquer erro vira
     aviso no log — o `RegistroEnvio` continua `ENVIADO`, que é a verdade.
     """
     conta = alias.conta
-    if not conta.imap_host:
+    if not conta.imap_host or not conta.guardar_enviados:
         return
     try:
         copia = mensagem.message()

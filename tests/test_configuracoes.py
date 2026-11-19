@@ -203,3 +203,19 @@ def test_escrever_pela_caixa_ja_escolhe_o_alias_dela(client, logado, duas_caixas
     _, conta_b, _, b = duas_caixas
     resposta = client.get(reverse("mensagens:inicio"), {"caixa": conta_b.pk})
     assert resposta.context["form"].initial["alias"] == b.slug
+
+
+def test_guardar_enviados_se_liga_e_desliga_pelo_formulario(client, logado):
+    client.post(
+        reverse("mensagens:config_conta_nova"),
+        _conta_pelo_formulario(imap_host="imap.outra.example", guardar_enviados="on"),
+    )
+    conta = ContaEmail.objects.get(usuario="suporte@outra.example")
+    assert conta.guardar_enviados is True
+
+    client.post(
+        reverse("mensagens:config_conta", args=[conta.pk]),
+        _conta_pelo_formulario(senha="", imap_host="imap.outra.example"),  # sem o checkbox
+    )
+    conta.refresh_from_db()
+    assert conta.guardar_enviados is False

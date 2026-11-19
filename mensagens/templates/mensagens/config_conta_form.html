@@ -66,6 +66,7 @@
 			{% include "mensagens/_campo.html" with campo=form.imap_porta %}
 		</div>
 		<p class="mudo">Só pelo servidor MCP, para o Claude Code ler e responder. Usa a mesma senha, por SSL direto. A tela continua sem caixa de entrada.</p>
+		<label class="alternar alternar-grande">{{ form.guardar_enviados }} Guardar cópia em Enviados <span class="mudo">(grava o que sai pelo app na pasta de enviados da caixa, por IMAP; desligue se o provedor já guarda sozinho)</span></label>
 
 		<div class="acoes">
 			<button type="submit" class="primario">Salvar conta</button>

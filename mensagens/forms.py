@@ -302,12 +302,14 @@ class FormularioConta(forms.ModelForm):
         fields = [
             "nome", "host", "porta", "usuario", "senha", "cifra", "timeout",
             "dominios_permitidos", "envelope_from", "ativa", "imap_host", "imap_porta",
+            "guardar_enviados",
         ]
         labels = {
             "nome": "Nome", "host": "Servidor SMTP", "porta": "Porta",
             "usuario": "Conta que autentica", "timeout": "Timeout (segundos)",
             "dominios_permitidos": "Domínios permitidos", "envelope_from": "Envelope fixo",
             "ativa": "Conta ativa", "imap_host": "Servidor IMAP", "imap_porta": "Porta IMAP",
+            "guardar_enviados": "Guardar cópia em Enviados",
         }
 
     def __init__(self, *args, **kwargs):

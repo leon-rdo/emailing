@@ -185,3 +185,19 @@ def test_usa_o_nome_quando_o_servidor_nao_anuncia_sent(alias_de_teste, imap):
     enviar_email(alias_de_teste, DadosRedacao(para=["c@x.com"], corpo_html="oi"))
     assert len(imap.pastas["INBOX.Sent"]) == 1
 
+
+def test_conta_com_copia_desligada_nao_grava_em_enviados(alias_de_teste, imap):
+    _com_pasta_enviados(imap)
+    conta = alias_de_teste.conta
+    conta.guardar_enviados = False
+    conta.save()
+
+    registro = enviar_email(alias_de_teste, DadosRedacao(para=["c@x.com"], corpo_html="oi"))
+
+    assert registro.status == RegistroEnvio.Status.ENVIADO
+    assert not imap.pastas["Sent"]
+    assert not any(c[0] == "LOGIN" for c in imap.comandos)
+
+
+def test_copia_em_enviados_vem_ligada_por_padrao(conta_de_teste):
+    assert conta_de_teste.guardar_enviados is True

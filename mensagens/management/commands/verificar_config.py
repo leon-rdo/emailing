@@ -50,6 +50,8 @@ class Command(BaseCommand):
             print(f"  timeout ....... {conta.timeout}s")
             recebimento = f"{conta.imap_host}:{conta.imap_porta}" if conta.imap_host else "(não)"
             print(f"  IMAP .......... {recebimento}")
+            if conta.imap_host:
+                print(f"  cópia Enviados  {'sim' if conta.guardar_enviados else 'não'}")
             print()
 
         for alias in carregar_aliases():
