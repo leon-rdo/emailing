@@ -29,6 +29,7 @@ import imaplib
 import logging
 import re
 import ssl
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -261,9 +262,8 @@ class Pasta:
     uso: str  # "\\Sent", "\\Trash"… (RFC 6154) ou vazio
 
 
-def listar_pastas(conta: ContaEmail) -> list[Pasta]:
-    with sessao(conta) as imap:
-        tipo, dados = imap.list()
+def _pastas_da_lista(imap) -> list[Pasta]:
+    tipo, dados = imap.list()
     if tipo != "OK":
         raise ErroCaixa("O servidor IMAP não devolveu a lista de pastas.")
     pastas = []
@@ -288,6 +288,11 @@ def listar_pastas(conta: ContaEmail) -> list[Pasta]:
         uso = next((f for f in flags if f.lower() in _USOS_ESPECIAIS), "")
         pastas.append(Pasta(nome=nome, uso=uso))
     return pastas
+
+
+def listar_pastas(conta: ContaEmail) -> list[Pasta]:
+    with sessao(conta) as imap:
+        return _pastas_da_lista(imap)
 
 
 @dataclass
@@ -714,3 +719,46 @@ def mover(ref: Referencia, destino: str) -> None:
     logger.info(
         "mover conta=%s de=%r uid=%s para=%r", ref.conta.usuario, ref.pasta, ref.uid, destino
     )
+
+
+# ---------------------------------------------------------------------------
+# Cópia na pasta de enviados
+# ---------------------------------------------------------------------------
+
+_NOMES_DE_ENVIADOS = ("Sent", "INBOX.Sent", "Sent Items", "Sent Messages", "Itens Enviados")
+
+
+def _pasta_de_enviados(pastas: list[Pasta]) -> str | None:
+    """O `\\Sent` (RFC 6154) manda; o nome só vale quando o servidor não anuncia o uso."""
+    for pasta in pastas:
+        if pasta.uso.lower() == "\\sent":
+            return pasta.nome
+    por_nome = {p.nome.lower(): p.nome for p in pastas}
+    for candidato in _NOMES_DE_ENVIADOS:
+        if candidato.lower() in por_nome:
+            return por_nome[candidato.lower()]
+    return None
+
+
+def guardar_em_enviados(conta: ContaEmail, bruto: bytes) -> str:
+    """`APPEND` da mensagem já enviada na pasta de enviados da caixa. Devolve a pasta.
+
+    Existe porque o SMTP **não** grava cópia: quem envia por `smtpout.secureserver.net`
+    ou pelo Hostinger não vê o e-mail no "Enviados" do webmail — isso é coisa que o
+    *cliente* de e-mail faz, por IMAP, depois do SMTP. Marca `\\Seen`: é uma mensagem
+    sua, não há nada a ler. Levanta `ErroCaixa`; quem chama decide se isso importa.
+    """
+    with sessao(conta) as imap:
+        pasta = _pasta_de_enviados(_pastas_da_lista(imap))
+        if pasta is None:
+            raise ErroCaixa(
+                f"Não achei a pasta de enviados da caixa {conta.usuario} "
+                "(nenhuma com uso \\Sent nem com nome conhecido)."
+            )
+        tipo, dados = imap.append(
+            _pasta_no_fio(pasta), "(\\Seen)", imaplib.Time2Internaldate(time.time()), bruto
+        )
+        if tipo != "OK":
+            detalhe = dados[0].decode("utf-8", "replace") if dados and dados[0] else ""
+            raise ErroCaixa(f"O servidor recusou gravar em {pasta!r} ({detalhe}).")
+    return pasta

@@ -61,6 +61,26 @@ inofensivo.
 **Por que não:** já quebrou. Emojis chegaram como `ð§`. Ver
 [entregabilidade.md](entregabilidade.md#encoding).
 
+### O app grava a cópia em Enviados por IMAP {#enviados}
+
+**Parece:** trabalho de cliente de e-mail que um app de envio não precisaria fazer.
+**Por que é assim:** o SMTP entrega a mensagem e **não guarda cópia** — quem grava em
+"Enviados" é o *cliente*, por IMAP, depois do SMTP. Sem isso, o que sai pelo app
+não aparece no webmail da caixa (foi o caso do Titan/GoDaddy; o contorno era pôr o
+alias em CCO, o que só entregava a cópia na caixa de entrada).
+
+- `envio._copiar_em_enviados` roda **depois** do `ENVIADO` e é melhor-esforço: a
+  mensagem já saiu, então erro de IMAP é aviso no log, nunca `FALHOU`. Não
+  "conserte" isso fazendo o envio falhar quando a cópia falha.
+- A pasta é a que o servidor anuncia como `\Sent` (RFC 6154); só sem o atributo
+  cai nos nomes conhecidos (`Sent`, `INBOX.Sent`…). Os nomes variam por provedor —
+  `Sent` na GoDaddy, `INBOX.Sent` na Hostinger.
+- A cópia leva `Bcc:` (o Django o tira do que vai pelo SMTP) e `\Seen`.
+- Conta **sem `imap_host`** não grava nada. Conta cujo provedor já guarda a cópia
+  sozinho (Gmail, por exemplo) duplicaria: hoje não há opção por conta para
+  desligar.
+- Custo: uma conexão IMAP a mais por envio, depois do SMTP, com o `timeout` da conta.
+
 ### Envelope no alias, não na caixa
 
 O `MAIL FROM` é o próprio alias (é o que o SPF autentica e o que alinha o

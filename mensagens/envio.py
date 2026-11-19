@@ -3,6 +3,10 @@
 `status=ENVIANDO` é gravado **antes** da chamada SMTP — é o registro de que o
 envio foi tentado, e o que faz o histórico contar a verdade mesmo se o
 processo morrer no meio da chamada de rede em vez de simplesmente falhar.
+
+Depois que o SMTP aceita, a mensagem é copiada na pasta de enviados da caixa por
+IMAP (`_copiar_em_enviados`): o SMTP não grava cópia, e sem isso o e-mail não
+aparece no "Enviados" do webmail.
 """
 
 from __future__ import annotations
@@ -15,6 +19,7 @@ from django.conf import settings
 from django.core.mail import get_connection
 from django.core.mail.utils import DNS_NAME
 
+from . import caixa
 from .anexos import ler_anexos, limpar_rascunho
 from .models import Alias, RegistroEnvio
 from .montagem import DadosRedacao, montar_email
@@ -30,6 +35,29 @@ def _fixar_nome_no_ehlo(dominio: str) -> None:
     envio, e não no boot, porque cada conta pode estar num domínio diferente.
     """
     DNS_NAME._fqdn = dominio
+
+
+def _copiar_em_enviados(alias: Alias, mensagem, message_id: str) -> None:
+    """Melhor-esforço: a mensagem **já saiu**, então nada aqui pode virar falha de envio.
+
+    Sem `imap_host` não há o que fazer (a caixa é só de envio), . Qualquer erro vira
+    aviso no log — o `RegistroEnvio` continua `ENVIADO`, que é a verdade.
+    """
+    conta = alias.conta
+    if not conta.imap_host:
+        return
+    try:
+        copia = mensagem.message()
+        if mensagem.bcc:  # o Django tira o Bcc do que sai; na cópia de quem enviou ele aparece
+            copia["Bcc"] = ", ".join(mensagem.bcc)
+        pasta = caixa.guardar_em_enviados(conta, copia.as_bytes())
+    except Exception as exc:  # noqa: BLE001 — ver docstring: nada pode derrubar um envio feito
+        logger.warning(
+            "Enviado %s, mas não consegui guardar em Enviados de %s: %s",
+            message_id, conta.usuario, exc,
+        )
+    else:
+        logger.info("Cópia de %s guardada em %r de %s", message_id, pasta, conta.usuario)
 
 
 def enviar_email(alias: Alias, dados: DadosRedacao, token_anexos: str = "") -> RegistroEnvio:
@@ -67,5 +95,6 @@ def enviar_email(alias: Alias, dados: DadosRedacao, token_anexos: str = "") -> R
 
     registro.status = RegistroEnvio.Status.ENVIADO
     registro.save(update_fields=["status"])
+    _copiar_em_enviados(alias, mensagem, message_id)
     limpar_rascunho(token_anexos)
     return registro

@@ -130,3 +130,58 @@ def test_in_reply_to_e_referencias_persistidos(alias_de_teste):
     registro = enviar_email(alias, dados)
     assert registro.in_reply_to == "<orig@x>"
     assert registro.referencias == "<a@x> <orig@x>"
+
+
+# --- cópia em Enviados (APPEND por IMAP) ------------------------------------
+
+
+def _com_pasta_enviados(imap):
+    imap.criar_pasta("Sent")
+    imap.extras_list.append(b'(\\HasNoChildren \\Sent) "/" "Sent"')
+
+
+def test_envio_guarda_copia_em_enviados(alias_de_teste, imap):
+    _com_pasta_enviados(imap)
+    dados = DadosRedacao(
+        para=["c@x.com"], cco=["escondido@x.com"], assunto="Oi", corpo_html="<p>Olá</p>"
+    )
+
+    registro = enviar_email(alias_de_teste, dados)
+
+    assert registro.status == RegistroEnvio.Status.ENVIADO
+    (copia,) = imap.pastas["Sent"].values()
+    assert "\\Seen" in copia["flags"]
+    assert b"From: Ana Souza <financeiro@empresa.example>" in copia["bruto"]
+    assert registro.message_id.encode() in copia["bruto"]
+    assert b"Bcc: escondido@x.com" in copia["bruto"]
+    # o que saiu pelo SMTP continua sem Bcc no cabeçalho
+    assert b"Bcc:" not in mail.outbox[0].message().as_bytes()
+
+
+def test_sem_imap_nao_tenta_copiar(alias_de_teste, imap):
+    _com_pasta_enviados(imap)
+    conta = alias_de_teste.conta
+    conta.imap_host = ""
+    conta.save()
+
+    registro = enviar_email(alias_de_teste, DadosRedacao(para=["c@x.com"], corpo_html="oi"))
+
+    assert registro.status == RegistroEnvio.Status.ENVIADO
+    assert not imap.pastas["Sent"]
+    assert not any(c[0] == "LOGIN" for c in imap.comandos)
+
+
+def test_falha_ao_guardar_nao_derruba_o_envio(alias_de_teste, imap, caplog):
+    # sem pasta de enviados nenhuma no servidor
+    registro = enviar_email(alias_de_teste, DadosRedacao(para=["c@x.com"], corpo_html="oi"))
+
+    assert registro.status == RegistroEnvio.Status.ENVIADO
+    assert len(mail.outbox) == 1
+    assert "não consegui guardar em Enviados" in caplog.text
+
+
+def test_usa_o_nome_quando_o_servidor_nao_anuncia_sent(alias_de_teste, imap):
+    imap.criar_pasta("INBOX.Sent")  # listada sem \Sent
+    enviar_email(alias_de_teste, DadosRedacao(para=["c@x.com"], corpo_html="oi"))
+    assert len(imap.pastas["INBOX.Sent"]) == 1
+

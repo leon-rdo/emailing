@@ -121,6 +121,14 @@ class ConexaoFalsa:
                 linhas.append(b'(\\HasNoChildren) "/" "' + nome.encode() + b'"')
         return "OK", linhas + self.s.extras_list
 
+    def append(self, mailbox, flags, data_hora, mensagem):
+        nome = _sem_aspas(mailbox)
+        self.s.comandos.append(("APPEND", nome, flags))
+        if nome not in self.s.pastas:
+            return "NO", [b"[TRYCREATE] Mailbox doesn't exist"]
+        self.s.entregar(mensagem, nome, flags.strip("()").split())
+        return "OK", [b"[APPENDUID 1 1] Append completed"]
+
     def select(self, mailbox, readonly=False):
         nome = _sem_aspas(mailbox)
         self.s.comandos.append(("EXAMINE" if readonly else "SELECT", nome))

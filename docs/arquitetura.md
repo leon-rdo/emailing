@@ -108,6 +108,8 @@ RegistroEnvio(status=ENVIANDO)                 # ANTES da rede
 get_connection(**alias.smtp) → send()
     ↓
 status = ENVIADO | FALHOU + erro
+    ↓ (só se ENVIADO e a conta tem IMAP)
+APPEND na pasta \Sent da caixa                 # melhor-esforço, só avisa no log
 ```
 
 `status=ENVIANDO` é gravado **antes** da chamada SMTP: é o registro de que o
@@ -116,6 +118,10 @@ processo morrer no meio da chamada de rede.
 
 `enviar_email()` **nunca levanta**. O status do retorno é a resposta — falha de
 SMTP vira `FALHOU` com o erro guardado, visível no histórico.
+
+A cópia em Enviados (`_copiar_em_enviados`) vem **depois** do `ENVIADO`: a mensagem
+já saiu, então uma falha ali (IMAP fora do ar, pasta não achada) é só um aviso no
+log e nunca muda o status. Ver [decisoes.md](decisoes.md#enviados).
 
 `DNS_NAME._fqdn` é ajustado **por envio**, não no boot: com contas em domínios
 diferentes, fixar um domínio na inicialização estaria errado para todas as
