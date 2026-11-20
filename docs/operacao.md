@@ -190,6 +190,24 @@ os de qualquer outra porta.
 Para revogar o acesso do MCP: apague a linha `command="/usr/local/bin/emailing
 mcp"…` do `authorized_keys`. Nada mais depende dela.
 
+## Extensão de navegador: escrever no webmail, enviar por aqui
+
+A pasta `extensao/` não é implantada nem configurada no servidor: é instalada
+no navegador de quem usa (`chrome://extensions` → modo do desenvolvedor →
+carregar sem compactação) e aponta para o app pelo endereço informado nas
+opções dela. O passo a passo está em [extensao/README.md](../extensao/README.md).
+
+O que ela exige do lado de cá é só o que já existe: estar logado no Emailing
+no mesmo navegador. O envio feito por ela aparece no histórico e no
+`RegistroEnvio` como qualquer outro da tela — é um envio da tela.
+
+Para tirar: remova a extensão no navegador. No servidor não há nada a desfazer.
+
+Quando parar de funcionar depois de uma atualização do Titan ou da Hostinger,
+a tabela “Quando o webmail mudar” do README dela diz onde olhar. **No Titan,
+confira primeiro se escolher um alias ainda intercepta o Enviar**: se não
+interceptar, a mensagem sai pelo Titan com o endereço da caixa.
+
 ## Envio programado
 
 A fila fica em `/agendados/` (listar, editar e cancelar; os rascunhos ficam em

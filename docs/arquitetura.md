@@ -237,6 +237,39 @@ POST … acao=enviar             enviar_email() e, se saiu, descartar o rascunho
 *autoral* (marcadores como escritos) e, para os anexos, a foto guardada em
 `EnvioAgendado.anexos` quando os arquivos já não existem.
 
+## A extensão de navegador (`extensao/`)
+
+Não é uma quinta porta: é **a tela**, com o formulário preenchido por outro
+editor. Quem escreve no webmail da caixa (Titan, Hostinger) clica em “Emailing”
+e a extensão leva o rascunho até `views.redigir`, numa janela própria.
+
+```
+webmail (aba)                         service worker            Emailing (janela)
+─────────────                         ──────────────            ─────────────────
+*-pagina.js   lê o rascunho
+   │  (mundo da página: só lê)
+comum.js      monta a "carga"  ──────► guarda a carga
+titan.js /    (campos prontos)         abre a janela ──────────► GET /
+hostinger.js                                                     preencher.js:
+                                       repassa as fatias ◄────── pede os anexos
+   fornece os anexos ◄─────────────────                          preenche os campos
+                                                                 a pessoa confere a prévia
+                                                                 POST acao=enviar (o da tela)
+   descarta o rascunho ◄─────────────── avisa o desfecho ◄────── /historico/<n>/ + aviso
+```
+
+- **Nada da extensão fala com o servidor.** O `preencher.js` escreve nos campos
+  e dispara os eventos que o `compor.js` já escuta; a prévia e o `hash_previa`
+  saem do caminho normal.
+- O corpo entra pelo “Editar HTML bruto” e a citação da resposta vai dentro
+  dele, para passar por `limpar_html`.
+- O `From` é o alias cujo endereço bate com o “De” do webmail.
+- No Titan, escolher um alias no “De:” liga o modo alias e o Enviar nativo
+  passa a abrir a confirmação. Na Hostinger o Enviar nativo fica como está.
+
+O porquê de cada escolha está em [decisoes.md](decisoes.md#extensao); instalar
+e usar, em [extensao/README.md](../extensao/README.md).
+
 ## Anexos (`anexos.py`)
 
 Não existe rota de upload separada: qualquer POST da tela de redação processa
@@ -310,3 +343,4 @@ anexos só como metadados. A ordem da busca é pela data do e-mail — ver
 | `cripto.py` | senha SMTP cifrada com chave derivada do `SECRET_KEY` |
 | chave ssh restrita | o MCP só abre com `command="emailing mcp",restrict`; sem shell, PTY ou forwarding |
 | aprovação no Claude Code | tools de escrita do MCP nunca na allowlist; teto `MCP_MAX_ENVIOS_POR_SESSAO` |
+| extensão sem requisição | a extensão só preenche a tela: o envio é o `POST` da sessão, depois da prévia, numa janela que o webmail não alcança |

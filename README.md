@@ -23,6 +23,8 @@ diferentes — Titan e Hostinger convivem, cada uma com os seus.
 - [docs/operacao.md](docs/operacao.md) — implantar, diagnosticar, backup
 - [docs/entregabilidade.md](docs/entregabilidade.md) — DNS, encoding, CSS em
   cliente de e-mail
+- [extensao/README.md](extensao/README.md) — a extensão de navegador que leva
+  o que você escreve no webmail até a tela de redação
 
 ## Desenvolvimento
 
@@ -231,6 +233,19 @@ A configuração completa (chave restrita, `~/.ssh/config`, allowlist só das
 tools de leitura, servidor IMAP de cada caixa) está em
 [docs/operacao.md](docs/operacao.md#mcp-o-claude-code-enviando-e-lendo-e-mail).
 As tools de envio pedem aprovação a cada chamada, de propósito.
+
+### Do webmail (extensão de navegador)
+
+Quem prefere escrever no webmail da caixa — o Titan (GoDaddy) ou o da
+Hostinger — instala a extensão da pasta [`extensao/`](extensao/README.md). Ela
+põe um botão **Emailing** na janela de escrita do webmail; no Titan, escolher
+um alias no “De:” faz o próprio Enviar sair pelo Emailing.
+
+O clique abre a tela de redação daqui numa janela, já preenchida (remetente,
+destinatários, assunto, corpo, anexos e o encadeamento da resposta). Você
+confere a prévia e envia; o rascunho do webmail é descartado quando a mensagem
+sai. A extensão não envia nada sozinha e não fala com o servidor: só preenche
+o formulário, na sua sessão.
 
 ### Marcadores
 

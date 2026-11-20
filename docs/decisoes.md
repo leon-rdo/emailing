@@ -691,6 +691,150 @@ passa pelo cliente MCP de verdade para provar a ligação.
 
 ---
 
+## Extensão de navegador {#extensao}
+
+Novembro/2026: uma extensão (`extensao/`, Manifest V3) para escrever no webmail
+da caixa — Titan e Hostinger — e enviar por um alias pelo Emailing. O motivo é o
+do projeto inteiro: o Titan lista os aliases no “De:”, mas cobra à parte para
+enviar por eles. O que parece errado até saber por quê:
+
+### A extensão não envia: ela preenche a tela {#extensao-sem-api}
+
+**Alternativa:** o service worker da extensão fazer o `POST` de envio com a
+sessão do navegador (ele consegue: tem permissão de host e o cookie vai junto).
+**Por que não:** é a API HTTP de envio recusada em [#cli](#cli), por outra
+porta. O `fetch` de uma extensão sai com `Origin: chrome-extension://…`, que o
+CSRF do Django recusa; fazê-lo passar seria pôr essa origem em
+`CSRF_TRUSTED_ORIGINS` e transformar a sessão do navegador num remetente
+programático. Não existe requisição da extensão para o servidor. Ela abre a
+tela de redação numa janela e **preenche o formulário pelos campos e pelos
+eventos que a tela já escuta**; a prévia, a trava de `hash_previa` e o `POST`
+são os de sempre, e o clique em Enviar é de quem está olhando.
+
+**Consequência:** o servidor não mudou uma linha por causa da extensão, e não
+deve mudar. Se um dia parecer que falta um endpoint “só para a extensão”, é
+esta entrada que está sendo desfeita.
+
+### A confirmação acontece fora da página do webmail {#extensao-confirmacao}
+
+**Alternativa:** enviar de dentro do webmail, sem abrir janela — é o que “usar o
+frontend do Titan” sugere.
+**Por que não:** a página do webmail exibe e-mail de terceiros. Um envio
+disparado dali, sem conferência numa página que ela não alcança, é o risco de
+[#mcp-injecao](#mcp-injecao) sem a aprovação humana. A janela de confirmação é
+do domínio do Emailing: o webmail não a enxerga nem clica nela. O botão da
+extensão e o modo alias só reagem a clique de gente (`isTrusted`).
+
+### O script do mundo da página só lê {#extensao-ponte}
+
+Ler o rascunho exige o estado interno do webmail (as props do React no Titan, a
+árvore de vnodes do Vue na Hostinger), e isso só existe no mundo da página
+(`world: "MAIN"`), não no mundo isolado dos content scripts. Os arquivos
+`*-pagina.js` rodam lá — ao alcance do JavaScript do próprio webmail. Por isso
+**não conhecem `chrome.*`, não clicam, não descartam, não enviam**: respondem a
+um evento com o rascunho em JSON, e é o `comum.js`, no mundo isolado, que
+decide o que fazer. A página pode mentir sobre o rascunho; o que ela devolve é
+conferido por uma pessoa antes de sair.
+
+A única escrita da ponte é a da Hostinger: ela põe os `File` dos anexos num
+`<input type="file">` oculto que o `comum.js` criou. É o jeito de um arquivo
+atravessar de um mundo para o outro — JSON não o carrega.
+
+### No Titan o Enviar é interceptado; na Hostinger, não {#extensao-interceptar}
+
+No Titan, escolher um alias no “De:” liga o **modo alias** daquela janela de
+escrita, e o Enviar nativo passa a abrir a confirmação. A interceptação cobre o
+clique, o “enviar depois” e o Ctrl+Enter, na fase de captura da janela (antes
+dos ouvintes do React, que ficam em `#root`). **Deixar escapar um caminho
+manda a mensagem pelo Titan com o endereço da caixa** — o pior defeito possível
+da extensão. Quem acrescentar um jeito de enviar no Titan tem que interceptá-lo
+aqui.
+
+A Hostinger já envia por alias sozinha, sem cobrar. Interceptar o Enviar dela
+tiraria um recurso que funciona; lá existe só o botão “Emailing”, para quem
+quer a assinatura do alias, os marcadores e o histórico.
+
+O que identifica um alias bloqueado no Titan é o item vir embrulhado no aviso
+de upgrade (`.titan-max-wrapper`). O item da própria caixa, e um alias que o
+plano libere, seguem para o Titan e desligam o modo alias.
+
+### O corpo entra pelo “HTML bruto”, e a citação vai dentro dele {#extensao-corpo}
+
+**Alternativa 1:** carregar o corpo no Trix, que é o editor da tela.
+**Por que não:** o Trix reescreve o HTML para o que ele sabe representar —
+tabela, cor e tamanho de fonte somem. Quem escreveu no webmail formatou lá.
+Entrar pelo “Editar HTML bruto” pula o editor e **não** pula o sanitizador
+(`limpar_html`), que continua valendo.
+
+**Alternativa 2:** pôr a mensagem respondida no campo `citacao_html`, que
+existe para isso.
+**Por que não:** `montar_corpo` insere `citacao_html` **sem sanitizar** — o
+campo foi feito para receber o que o próprio servidor já limpou ao importar um
+`.eml`. A citação que vem do webmail é HTML de terceiros; dentro do `corpo`,
+ela passa pelo sanitizador como todo o resto.
+
+**O corpo é reaplicado a cada volta do servidor.** O Trix regrava o campo
+oculto `corpo` quando inicializa, em toda carga da página: sem reaplicar, o
+primeiro anexo subido (que recarrega a tela) achataria a formatação. Daí a
+ordem em `preencher.js` — campos, anexos, recarga, corpo — e o corpo guardado
+no `sessionStorage` da janela antes de cada envio do formulário.
+
+### O endereço do Emailing não está no manifesto {#extensao-endereco}
+
+**Alternativa:** `host_permissions` com o domínio do app, e pronto.
+**Por que não:** o repositório é público e genérico; domínio de implantação não
+entra em arquivo versionado. O manifesto traz só os webmails (que são endereços
+dos provedores) e declara `optional_host_permissions`. O endereço é informado
+na página de opções, o Chrome pede a permissão **para aquele endereço**, e só
+então o `preencher.js` é registrado (`chrome.scripting.registerContentScripts`).
+
+Esse script roda em toda página do Emailing, mas pergunta ao service worker se
+há uma mensagem esperando naquela aba e sai sem tocar em nada quando não há: a
+tela aberta à mão fica como sempre foi.
+
+### Os anexos ficam no webmail até serem pedidos
+
+**Alternativa:** mandar os arquivos junto com o rascunho para o service worker.
+**Por que não:** um service worker é descartado a qualquer momento, e o
+`chrome.storage.session` tem teto de 10 MB. O rascunho vai para lá sem os
+arquivos; eles ficam na aba do webmail e viajam em fatias de 3 MB, em base64,
+quando a tela do Emailing pede.
+
+No Titan o arquivo precisa ser **guardado na hora em que é anexado** (os
+eventos `change`, `drop` e `paste`): ele sobe o anexo no ato e o rascunho só
+conserva nome e tamanho. Anexo que veio de outro lugar — de um encaminhamento,
+de um rascunho antigo — não acompanha, e a janela avisa. Na Hostinger o `File`
+está nas props do compositor.
+
+### O rascunho do webmail só é descartado depois do “E-mail enviado.”
+
+O `preencher.js` lembra qual botão foi clicado e, na página seguinte, confere o
+endereço e o aviso de sucesso (`/historico/<n>/` + `.aviso.success` para o
+envio). Só então o webmail é avisado e descarta o rascunho. Falha de envio,
+erro de campo e janela fechada deixam o rascunho de lá intacto. Mexer no
+redirecionamento do envio ou nas classes dos avisos quebra essa detecção — e
+o sintoma é o rascunho sobrando no webmail, não um envio errado.
+
+### Sem teste automatizado no repositório {#extensao-testes}
+
+O projeto não tem npm, e um teste de extensão exige um navegador com ela
+carregada. O que foi feito antes de ela entrar, e vale repetir depois de
+mexer:
+
+- **Nas páginas reais** do Titan e da Hostinger, com os scripts injetados e um
+  service worker de mentira: leitura do rascunho, modo alias, interceptação do
+  Enviar (clique e Ctrl+Enter, sem destinatário), anexo, resposta com citação e
+  descarte. Sempre no artefato real — os seletores não têm outro teste.
+- **De ponta a ponta**, com a extensão carregada num Chromium, um Emailing
+  local, um SMTP de mentira e um webmail de mentira: preenchimento, anexo de
+  mais de uma fatia, envio, cabeçalhos no `.eml`, rascunho, falha de SMTP,
+  janela fechada sem enviar e a tela aberta à mão intocada.
+
+O pedido de permissão da página de opções ficou de fora dos dois: o Chrome não
+deixa um teste clicar nele.
+
+---
+
 ## Backup
 
 Era a maior pendência conhecida do projeto: `DATA_DIR` guardava contas,

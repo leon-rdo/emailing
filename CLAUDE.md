@@ -75,6 +75,14 @@ uv run pytest
   - `management/commands/mcp.py` — o servidor MCP por stdio (o que a chave ssh restrita abre)
   - `management/commands/enviar.py` — a porta do operador e de agentes (ssh)
   - `management/commands/despachar_agendados.py` — o que o cron chama
+- `extensao/` — extensão de navegador (Manifest V3, sem build) para escrever no
+  webmail da caixa e enviar pelo app. **Não é parte do servidor** e não tem
+  teste no `pytest`:
+  - `fundo.js` — service worker: abre a janela de confirmação, guarda a carga
+  - `webmail/comum.js` + `titan.js` / `hostinger.js` — botão, modo alias, anexos
+  - `webmail/*-pagina.js` — leem o rascunho no mundo da página (**só leem**)
+  - `emailing/preencher.js` — preenche o formulário de `redigir.html`; depende
+    dos nomes dos campos, do "Editar HTML bruto" e das classes dos avisos
 
 ## Convenções que não devem ser "corrigidas"
 
@@ -123,6 +131,14 @@ O racional completo está em [docs/decisoes.md](docs/decisoes.md). Em resumo:
   intervalo humano que a trava protege. Quem quer conferir usa `--conferir`.
 - **Agendamento guarda o corpo cru do editor**, não o HTML pronto: sanitizar e
   expandir marcador acontecem no despacho, pelo mesmo caminho da tela.
+- **A extensão de navegador só preenche a tela.** Não faz requisição ao
+  servidor, e o servidor não ganha rota, token nem origem confiável por causa
+  dela — seria a API HTTP de envio por outra porta. O endereço do app não vai no
+  manifesto (é informado nas opções). No Titan ela intercepta o Enviar em modo
+  alias; na Hostinger, não. Ver [decisoes.md](docs/decisoes.md#extensao).
+- **Mexeu em `redigir.html`, no `compor.js` ou no redirecionamento do envio?**
+  Confira `extensao/emailing/preencher.js`: ele usa os nomes dos campos, o
+  `#alternar-html-bruto`, o `.aviso.success` e o caminho `/historico/<n>/`.
 
 ## Ao investigar um bug
 
