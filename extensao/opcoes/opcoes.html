@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Emailing no webmail — opções</title>
+	<link rel="stylesheet" href="opcoes.css">
+</head>
+<body>
+	<main>
+		<h1>Emailing no webmail</h1>
+		<p class="resumo">
+			Escreva no webmail e envie por um alias pelo seu Emailing. A extensão leva o
+			rascunho até a tela de redação do Emailing; a prévia e o envio são os de lá.
+		</p>
+
+		<form id="form-endereco" novalidate>
+			<label for="endereco">Endereço do seu Emailing</label>
+			<div class="linha">
+				<input type="url" id="endereco" name="endereco" placeholder="https://emailing.example.com"
+					autocomplete="off" spellcheck="false" required>
+				<button type="submit">Salvar</button>
+			</div>
+			<p class="ajuda">
+				Ao salvar, o Chrome pede permissão para a extensão agir nesse endereço — e só nele.
+				É lá que ela preenche o formulário de redação.
+			</p>
+			<p id="estado" role="status" aria-live="polite"></p>
+		</form>
+
+		<h2>Como usar</h2>
+		<ol>
+			<li>Entre no Emailing normalmente, no mesmo navegador. A extensão não guarda senha nem código.</li>
+			<li>
+				No webmail, escreva a mensagem e clique em <strong>Emailing</strong>: no Titan fica ao lado
+				do Enviar; na Hostinger, na linha do “De”. No Titan, escolher um alias no “De:” também
+				serve: o Enviar passa a sair pelo Emailing.
+			</li>
+			<li>Na janela que abre, confira a prévia e envie. O rascunho do webmail é descartado quando a mensagem sai.</li>
+		</ol>
+
+		<h2>Onde funciona</h2>
+		<ul>
+			<li>Titan — <code>*.titan.email</code> (o webmail da GoDaddy, entre outros)</li>
+			<li>Hostinger — <code>mail.hostinger.com</code></li>
+		</ul>
+	</main>
+	<script src="../config.js"></script>
+	<script src="opcoes.js"></script>
+</body>
+</html>

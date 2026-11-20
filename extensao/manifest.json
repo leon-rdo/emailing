@@ -1,0 +1,58 @@
+{
+	"manifest_version": 3,
+	"name": "Emailing no webmail",
+	"version": "0.1.0",
+	"description": "Escreva no webmail (Titan, Hostinger) e envie por um alias pelo seu Emailing, conferindo a prévia antes.",
+	"minimum_chrome_version": "111",
+	"icons": {
+		"16": "icones/16.png",
+		"48": "icones/48.png",
+		"128": "icones/128.png"
+	},
+	"action": {
+		"default_title": "Emailing no webmail: opções"
+	},
+	"options_ui": {
+		"page": "opcoes/opcoes.html",
+		"open_in_tab": true
+	},
+	"background": {
+		"service_worker": "fundo.js"
+	},
+	"permissions": ["storage", "scripting"],
+	"host_permissions": [
+		"https://*.titan.email/*",
+		"https://mail.hostinger.com/*"
+	],
+	"optional_host_permissions": [
+		"https://*/*",
+		"http://localhost/*",
+		"http://127.0.0.1/*"
+	],
+	"content_scripts": [
+		{
+			"matches": ["https://*.titan.email/*"],
+			"js": ["webmail/titan-pagina.js"],
+			"world": "MAIN",
+			"run_at": "document_start"
+		},
+		{
+			"matches": ["https://*.titan.email/*"],
+			"js": ["webmail/comum.js", "webmail/titan.js"],
+			"css": ["webmail/webmail.css"],
+			"run_at": "document_idle"
+		},
+		{
+			"matches": ["https://mail.hostinger.com/*"],
+			"js": ["webmail/hostinger-pagina.js"],
+			"world": "MAIN",
+			"run_at": "document_start"
+		},
+		{
+			"matches": ["https://mail.hostinger.com/*"],
+			"js": ["webmail/comum.js", "webmail/hostinger.js"],
+			"css": ["webmail/webmail.css"],
+			"run_at": "document_idle"
+		}
+	]
+}

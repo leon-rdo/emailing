@@ -1,0 +1,30 @@
+/* A faixa que a extensão põe na janela de confirmação. Segue o desenho dos
+   avisos em linha do app (`.via-erros`): fundo tingido, sem borda. Usa os
+   tokens do `estilo.css`, com valor de reserva para o caso de mudarem de nome. */
+
+.emailing-ext-faixa {
+	margin: 12px 24px 4px;
+	padding: 10px 12px;
+	border-radius: var(--raio, 6px);
+	background: var(--acao-fraca, #e6e8ff);
+	color: var(--tinta, #0e0e12);
+	font-size: .875rem;
+	line-height: 1.45;
+}
+.emailing-ext-faixa ul { margin: 6px 0 0; padding-left: 18px; }
+.emailing-ext-faixa li + li { margin-top: 2px; }
+
+/* Nas páginas sem o formulário (login, registro do envio): solta, no alto. */
+.emailing-ext-faixa--solta {
+	position: fixed;
+	top: 16px;
+	left: 50%;
+	z-index: 2147483647;
+	max-width: min(560px, calc(100vw - 32px));
+	margin: 0;
+	transform: translateX(-50%);
+	box-shadow: 0 6px 24px rgba(14, 14, 18, .18);
+}
+
+.emailing-ext-faixa--erro { background: var(--erro-fraco, #fdecee); color: var(--erro, #c8102e); }
+.emailing-ext-faixa--sucesso { background: var(--ok-fraco, #e3f5ec); color: var(--ok, #0a7d4b); }

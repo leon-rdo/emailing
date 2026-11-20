@@ -1,0 +1,104 @@
+/* O que a extensão desenha dentro do webmail. Tudo com prefixo próprio e com
+   as cores do Emailing escritas por extenso (os tokens do `estilo.css` não
+   existem nestas páginas): precisa ficar legível no tema claro e no escuro do
+   Titan e da Hostinger sem depender de variável nenhuma deles. */
+
+.emailing-ext-botao {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex: none;
+	height: 32px;
+	margin: 0 8px;
+	padding: 0 12px;
+	border: 0;
+	border-radius: 6px;
+	background: #2a35ff;
+	color: #fff;
+	font: 600 13px/1 "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+	white-space: nowrap;
+	cursor: pointer;
+}
+.emailing-ext-botao:hover { background: #1a24d6; }
+.emailing-ext-botao:focus-visible { outline: 2px solid #fff; box-shadow: 0 0 0 4px #2a35ff; }
+.emailing-ext-botao svg { flex: none; }
+
+/* --- Titan: modo alias ----------------------------------------------------- */
+
+.emailing-ext-ficha {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	margin-left: 8px;
+	padding: 2px 4px 2px 10px;
+	border-radius: 999px;
+	background: #2a35ff;
+	color: #fff;
+	font: 500 13px/1.5 "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+	white-space: nowrap;
+	vertical-align: middle;
+}
+.emailing-ext-ficha small { font-size: 11px; opacity: .8; }
+.emailing-ext-ficha button {
+	width: 20px;
+	height: 20px;
+	padding: 0;
+	border: 0;
+	border-radius: 50%;
+	background: rgba(255, 255, 255, .18);
+	color: #fff;
+	font: 400 15px/1 "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+	cursor: pointer;
+}
+.emailing-ext-ficha button:hover { background: rgba(255, 255, 255, .34); }
+
+/* O remetente da caixa continua à vista, riscado: quem sai é o alias. */
+[data-emailing-alias] [data-testid="from-field"] [data-testid="dropdown-header"] > span {
+	text-decoration: line-through;
+	opacity: .5;
+}
+[data-emailing-alias] [data-testid="send-action-btn"],
+[data-emailing-alias] [data-testid="send-later-btn"] {
+	background: #2a35ff !important;
+	border-color: #2a35ff !important;
+	color: #fff !important;
+}
+[data-emailing-alias] [data-testid="send-action-btn"]::after {
+	content: " · Emailing";
+	font-weight: 400;
+	opacity: .85;
+}
+/* Em modo alias o Enviar nativo já é o caminho do Emailing: dois botões para a
+   mesma coisa, lado a lado, só confundem. */
+[data-emailing-alias] .emailing-ext-botao { display: none; }
+
+/* --- avisos ---------------------------------------------------------------- */
+
+/* No alto: embaixo ficam as janelas de escrita dos dois webmails, e o aviso
+   cobriria justamente a barra do Enviar. */
+.emailing-ext-avisos {
+	position: fixed;
+	left: 50%;
+	top: 16px;
+	z-index: 2147483647;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	width: max-content;
+	max-width: min(560px, calc(100vw - 32px));
+	transform: translateX(-50%);
+	pointer-events: none;
+}
+.emailing-ext-aviso {
+	padding: 10px 16px;
+	border-radius: 8px;
+	background: #0e0e12;
+	color: #fff;
+	font: 500 14px/1.4 "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+	box-shadow: 0 6px 24px rgba(0, 0, 0, .35);
+	transition: opacity .25s, transform .25s;
+}
+.emailing-ext-aviso--sucesso { background: #0a7d4b; }
+.emailing-ext-aviso--erro { background: #c8102e; }
+.emailing-ext-aviso--some { opacity: 0; transform: translateY(6px); }

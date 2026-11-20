@@ -1,0 +1,80 @@
+/* Página de opções da extensão. Os mesmos tokens do `estilo.css` do app
+   (DESIGN.md): papel claro, tinta quase preta, linhas de 1px e um único azul.
+   Sóbria de propósito — é uma tela que se abre uma vez.
+
+   O arquivo da fonte não vem junto: seria duplicar o woff2 do app numa pasta
+   que precisa se bastar. Sem a Bricolage instalada, vale a reserva que o
+   próprio sistema de design declara. */
+
+:root {
+	color-scheme: light;
+
+	--papel: #f5f6f8;
+	--superficie: #ffffff;
+	--tinta: #0e0e12;
+	--mudo: #5b5f6c;
+	--linha: #d9dce3;
+	--acao: #2a35ff;
+	--acao-escura: #1a24d6;
+	--erro: #c8102e;
+	--ok: #0a7d4b;
+
+	--fonte: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+	--mono: "Spline Sans Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+	--raio: 6px;
+}
+
+* { box-sizing: border-box; }
+body {
+	margin: 0;
+	background: var(--papel);
+	color: var(--tinta);
+	font: 400 15px/1.5 var(--fonte);
+}
+main {
+	max-width: 640px;
+	margin: 0 auto;
+	padding: 48px 24px 64px;
+}
+h1 { margin: 0 0 8px; font: 800 28px/1.1 var(--fonte); letter-spacing: -.025em; }
+h2 { margin: 36px 0 8px; font: 700 14px var(--fonte); }
+.resumo { margin: 0 0 28px; color: var(--mudo); max-width: 58ch; }
+
+form {
+	padding: 20px;
+	border: 1px solid var(--linha);
+	border-radius: var(--raio);
+	background: var(--superficie);
+}
+label { display: block; margin-bottom: 6px; font-weight: 600; }
+.linha { display: flex; gap: 8px; }
+input {
+	flex: 1;
+	min-width: 0;
+	padding: 9px 12px;
+	border: 1px solid var(--linha);
+	border-radius: var(--raio);
+	background: var(--superficie);
+	color: inherit;
+	font: inherit;
+}
+input:focus-visible, button:focus-visible { outline: 2px solid var(--acao); outline-offset: 2px; }
+button {
+	padding: 9px 18px;
+	border: 0;
+	border-radius: var(--raio);
+	background: var(--acao);
+	color: #fff;
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+}
+button:hover { background: var(--acao-escura); }
+.ajuda { margin: 10px 0 0; color: var(--mudo); font-size: .875rem; }
+#estado { margin: 12px 0 0; min-height: 1.5em; font-weight: 600; }
+#estado[data-tipo="ok"] { color: var(--ok); }
+#estado[data-tipo="erro"] { color: var(--erro); }
+
+ol, ul { margin: 0; padding-left: 20px; }
+li + li { margin-top: 6px; }
+code { font-family: var(--mono); font-size: .85em; }
